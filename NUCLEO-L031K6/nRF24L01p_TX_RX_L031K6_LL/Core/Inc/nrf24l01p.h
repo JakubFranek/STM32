@@ -161,6 +161,7 @@
 #define NRF24L01P_REG_FEATURE_EN_ACK_PAY		(1U << 1)
 #define NRF24L01P_REG_FEATURE_EN_DYN_ACK		(1U << 0)
 
+/*----------- nRF24L01+ Enums, Structs and Function Pointers -----------*/
 typedef enum {
 	NRF24L01P_SUCCESS = 0,
 	NRF24L01P_SPI_ERROR = -1,
@@ -178,14 +179,14 @@ typedef struct {
 	uint8_t value;
 } nrf24l01p_8bit_reg_rst_vals_t;
 
-extern nrf24l01p_8bit_reg_rst_vals_t reg_rst_vals_8bit[];
+extern nrf24l01p_8bit_reg_rst_vals_t reg_rst_vals_8bit[];	// initialized in .c
 
 typedef struct {
 	uint8_t address;
 	uint64_t value;
 } nrf24l01p_40bit_reg_rst_vals_t;
 
-extern nrf24l01p_40bit_reg_rst_vals_t reg_rst_vals_40bit[];
+extern nrf24l01p_40bit_reg_rst_vals_t reg_rst_vals_40bit[];	// initialized in .c
 
 typedef enum
 {
@@ -211,8 +212,11 @@ typedef enum
 	NRF24L01P_CRC_2BYTE = (1U << 2)
 } nrf24l01p_crc_length_t;
 
+// Argument state = 0 for low, 1 for high
 typedef void (*nrf24l01p_set_cs_t)(uint8_t state);
 typedef void (*nrf24l01p_set_ce_t)(uint8_t state);
+
+// Return value of following functions is error code, 0 is only accepted success value
 typedef uint8_t (*nrf24l01p_spi_tx_t)(uint8_t register_address);
 typedef uint8_t (*nrf24l01p_spi_rx_t)(uint8_t* register_value);
 typedef uint8_t (*nrf24l01p_spi_tx_rx_t)(uint8_t register_address, uint8_t* register_value);
@@ -225,7 +229,7 @@ typedef struct{
 	nrf24l01p_spi_tx_rx_t spi_tx_rx;
 } nrf24l01p_interface_t;
 
-
+// Handler struct for use in application code
 typedef struct {
 	// Interface
 	nrf24l01p_interface_t interface;
@@ -235,26 +239,23 @@ typedef struct {
 	uint8_t address_width;					// range 3 to 5 bytes
 	nrf24l01p_data_rate_t data_rate;
 	nrf24l01p_crc_length_t crc_length;
+	uint8_t data_length;					// range 0 to 32 bytes
 
 	// TX settings
 	nrf24l01p_output_power_t output_power;
 	uint8_t auto_ack_pipes;					// interpreted as binary, 2 MSBs ignored
 	uint8_t auto_retransmit_count;			// range 0 to 15
 	uint8_t auto_retransmit_delay_250us;	// range 1 to 16 (in multiples of 250 us)
-
-	// RX settings
-	uint8_t data_length;					// range 0 to 32 bytes
-
 } nrf24l01p_config_t;
 
 
-/* High-level API functions */
+/*----------- High-level API functions -----------*/
 nrf24l01p_error_t nrf24l01p_init(nrf24l01p_config_t* config);
 
 nrf24l01p_error_t nrf24l01p_rx_receive(uint8_t* rx_payload);
 nrf24l01p_error_t nrf24l01p_tx_transmit(uint8_t* tx_payload);
 
-nrf24l01p_error_t nrf24l01p_tx_irq();
+nrf24l01p_error_t nrf24l01p_irq(nrf24l01p_irq_t* irq_sources);
 nrf24l01p_error_t nrf24l01p_reset();
 
 nrf24l01p_error_t nrf24l01p_set_prx_mode();
@@ -267,18 +268,16 @@ nrf24l01p_error_t nrf24l01p_power_up();
 nrf24l01p_error_t nrf24l01p_power_down();
 
 
-/* Low-level API functions */
+/*----------- Low-level API functions -----------*/
 nrf24l01p_error_t nrf24l01p_get_status();
 nrf24l01p_error_t nrf24l01p_get_status_and_clear_IRQ_flags();
+nrf24l01p_error_t nrf24l01p_clear_flag(uint8_t flag);
 nrf24l01p_error_t nrf24l01p_get_fifo_status();
 
 nrf24l01p_error_t nrf24l01p_read_rx_fifo(uint8_t* rx_payload);
 nrf24l01p_error_t nrf24l01p_write_tx_fifo(uint8_t* tx_payload);
-
 nrf24l01p_error_t nrf24l01p_flush_rx_fifo();
 nrf24l01p_error_t nrf24l01p_flush_tx_fifo();
-
-nrf24l01p_error_t nrf24l01p_clear_flag(uint8_t flag);
 
 nrf24l01p_error_t nrf24l01p_set_crc_length(nrf24l01p_crc_length_t length);
 nrf24l01p_error_t nrf24l01p_set_address_width(uint8_t address_width);

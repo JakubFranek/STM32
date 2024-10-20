@@ -217,12 +217,20 @@ void EXTI1_Callback(void)
 {
 	if(!LL_GPIO_IsInputPinSet(nRF24_IRQ_GPIO_Port, nRF24_IRQ_Pin))
 	{
+		nrf24l01p_irq_t irq_sources;
+		if(nrf24l01p_irq(&irq_sources) != NRF24L01P_SUCCESS)
+			return;
+
 #ifdef RECEIVER
-		nrf24l01p_rx_receive(rx_data);
+		if (irq_sources.rx_dr)
+			nrf24l01p_rx_receive(rx_data);
 #endif
 
 #ifdef TRANSMITTER
-		nrf24l01p_tx_irq();
+		if (irq_sources.tx_ds)
+			LL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+		else if (irq_sources.max_rt)
+			LL_GPIO_ResetOutputPin(LD3_GPIO_Port, LD3_Pin);
 #endif
 	}
 }

@@ -1,6 +1,8 @@
 #include "nrf24l01p.h"
 #include <stddef.h>
 
+
+/* ------------------------------ Macros ------------------------------ */
 #ifndef SET_BIT
 	#define SET_BIT(reg, bit) 		((reg) |= (1U << (bit)))
 #endif
@@ -28,6 +30,7 @@
   } \
 } while (0)
 
+/* ------------------------------ Module variables ------------------------------ */
 nrf24l01p_8bit_reg_rst_vals_t reg_rst_vals_8bit[] = {
 	{NRF24L01P_REG_CONFIG,			NRF24L01P_REG_CONFIG_RSTVAL},
 	{NRF24L01P_REG_EN_AA,			NRF24L01P_REG_EN_AA_RSTVAL},
@@ -58,9 +61,11 @@ nrf24l01p_40bit_reg_rst_vals_t reg_rst_vals_40bit[] = {
 	{NRF24L01P_REG_TX_ADDR,		NRF24L01P_REG_TX_ADDR_RSTVAL},
 };
 
-
+/* ------------------------------ Static variables ------------------------------ */
 static nrf24l01p_config_t config;
 
+
+/* ------------------------------ Static functions ------------------------------ */
 static nrf24l01p_error_t read_register(uint8_t address, uint8_t* value)
 {
     uint8_t command = NRF24L01P_CMD_R_REGISTER | address;
@@ -156,6 +161,7 @@ static nrf24l01p_error_t send_command(uint8_t command)
 	return NRF24L01P_SUCCESS;
 }
 
+/* ------------------------------ High-level API ------------------------------ */
 nrf24l01p_error_t nrf24l01p_init(nrf24l01p_config_t* _config)
 {
 	if (_config == NULL)
@@ -194,7 +200,7 @@ nrf24l01p_error_t nrf24l01p_tx_transmit(uint8_t* tx_payload)
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_tx_irq(nrf24l01p_irq_t* irq_sources)
+nrf24l01p_error_t nrf24l01p_irq(nrf24l01p_irq_t* irq_sources)
 {
 	uint8_t dummy;
 	config.interface.spi_rx(&dummy); 	// Ensure SPI RX buffer is empty
@@ -208,11 +214,6 @@ nrf24l01p_error_t nrf24l01p_tx_irq(nrf24l01p_irq_t* irq_sources)
 
     config.interface.set_ce(0);
     NRF24L01P_CHECK_ERROR(nrf24l01p_power_down());
-
-    if(irq_sources->tx_ds)
-    	LL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-    else
-    	LL_GPIO_ResetOutputPin(LD3_GPIO_Port, LD3_Pin);
 
     return NRF24L01P_SUCCESS;
 }
@@ -280,50 +281,31 @@ nrf24l01p_error_t nrf24l01p_set_tx_addr(uint64_t address)
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_read_rx_fifo(uint8_t* rx_payload)
+
+nrf24l01p_error_t nrf24l01p_power_up()
 {
-    NRF24L01P_CHECK_ERROR(send_command(NRF24L01P_CMD_R_RX_PAYLOAD));
+    uint8_t config_reg;
+    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_CONFIG, &config_reg));
+    SET_BIT(config_reg, NRF24L01P_REG_CONFIG_PWR_UP);
 
-    config.interface.set_cs(0);
+    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_CONFIG, config_reg));
 
-	for (uint8_t i = 0; i < config.data_length; i++)
-		NRF24L01P_CHECK_ERROR(config.interface.spi_tx_rx(0xFF, &rx_payload[i]));
-
-	config.interface.set_cs(1);
-
-	return NRF24L01P_SUCCESS;
+    return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_write_tx_fifo(uint8_t* tx_payload)
+nrf24l01p_error_t nrf24l01p_power_down()
 {
-    uint8_t status;
+    uint8_t config_reg;
+    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_CONFIG, &config_reg));
+    CLEAR_BIT(config_reg, NRF24L01P_REG_CONFIG_PWR_UP);
 
-    config.interface.set_cs(0);
+    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_CONFIG, config_reg));
 
-    NRF24L01P_CHECK_ERROR(config.interface.spi_tx_rx(NRF24L01P_CMD_W_TX_PAYLOAD, &status));
-
-    for (uint8_t i = 0; i < config.data_length; i++)
-    	NRF24L01P_CHECK_ERROR(config.interface.spi_tx(tx_payload[i]));
-
-    config.interface.set_cs(1);
-
-	return NRF24L01P_SUCCESS;
+    return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_flush_rx_fifo()
-{
-	NRF24L01P_CHECK_ERROR(send_command(NRF24L01P_CMD_FLUSH_RX));
 
-	return NRF24L01P_SUCCESS;
-}
-
-nrf24l01p_error_t nrf24l01p_flush_tx_fifo()
-{
-	NRF24L01P_CHECK_ERROR(send_command(NRF24L01P_CMD_FLUSH_TX));
-
-	return NRF24L01P_SUCCESS;
-}
-
+/* ------------------------------ Low-level API ------------------------------ */
 nrf24l01p_error_t nrf24l01p_get_status(uint8_t* status)
 {
 	config.interface.set_cs(0);
@@ -355,6 +337,51 @@ nrf24l01p_error_t nrf24l01p_get_fifo_status(uint8_t* fifo_status)
 	return NRF24L01P_SUCCESS;
 }
 
+nrf24l01p_error_t nrf24l01p_flush_rx_fifo()
+{
+	NRF24L01P_CHECK_ERROR(send_command(NRF24L01P_CMD_FLUSH_RX));
+
+	return NRF24L01P_SUCCESS;
+}
+
+nrf24l01p_error_t nrf24l01p_flush_tx_fifo()
+{
+	NRF24L01P_CHECK_ERROR(send_command(NRF24L01P_CMD_FLUSH_TX));
+
+	return NRF24L01P_SUCCESS;
+}
+
+
+nrf24l01p_error_t nrf24l01p_read_rx_fifo(uint8_t* rx_payload)
+{
+    NRF24L01P_CHECK_ERROR(send_command(NRF24L01P_CMD_R_RX_PAYLOAD));
+
+    config.interface.set_cs(0);
+
+	for (uint8_t i = 0; i < config.data_length; i++)
+		NRF24L01P_CHECK_ERROR(config.interface.spi_tx_rx(0xFF, &rx_payload[i]));
+
+	config.interface.set_cs(1);
+
+	return NRF24L01P_SUCCESS;
+}
+
+nrf24l01p_error_t nrf24l01p_write_tx_fifo(uint8_t* tx_payload)
+{
+    uint8_t status;
+
+    config.interface.set_cs(0);
+
+    NRF24L01P_CHECK_ERROR(config.interface.spi_tx_rx(NRF24L01P_CMD_W_TX_PAYLOAD, &status));
+
+    for (uint8_t i = 0; i < config.data_length; i++)
+    	NRF24L01P_CHECK_ERROR(config.interface.spi_tx(tx_payload[i]));
+
+    config.interface.set_cs(1);
+
+	return NRF24L01P_SUCCESS;
+}
+
 nrf24l01p_error_t nrf24l01p_rx_set_payload_length(uint8_t pipe_index, uint8_t bytes)
 {
 	if (bytes > 32 || pipe_index > 5)
@@ -373,28 +400,6 @@ nrf24l01p_error_t nrf24l01p_clear_status_flag(uint8_t flags)
     SET_BIT(status, flags);
 
     NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_STATUS, status));
-
-    return NRF24L01P_SUCCESS;
-}
-
-nrf24l01p_error_t nrf24l01p_power_up()
-{
-    uint8_t config_reg;
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_CONFIG, &config_reg));
-    SET_BIT(config_reg, NRF24L01P_REG_CONFIG_PWR_UP);
-
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_CONFIG, config_reg));
-
-    return NRF24L01P_SUCCESS;
-}
-
-nrf24l01p_error_t nrf24l01p_power_down()
-{
-    uint8_t config_reg;
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_CONFIG, &config_reg));
-    CLEAR_BIT(config_reg, NRF24L01P_REG_CONFIG_PWR_UP);
-
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_CONFIG, config_reg));
 
     return NRF24L01P_SUCCESS;
 }
@@ -468,7 +473,7 @@ nrf24l01p_error_t nrf24l01p_set_auto_ack_pipes(uint8_t pipes)
 
 nrf24l01p_error_t nrf24l01p_set_rf_channel(uint16_t channel_MHz)
 {
-	if (channel_MHz < 2400 || channel_MHz > 2400 + NRF24L01P_REG_RF_CH_MASK)
+	if (channel_MHz < 2400 || channel_MHz > 2525)
 		return NRF24L01P_INVALID_VALUE;
 
 	uint8_t rf_ch = channel_MHz - 2400;
