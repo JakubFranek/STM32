@@ -25,16 +25,16 @@ static uint8_t receive_done()
 	return done;
 }
 
-static uint8_t read_register(uint8_t register_address, uint8_t* register_value)
+static uint8_t read_register(uint8_t address, uint8_t* value)
 {
-    uint8_t command = NRF24L01P_CMD_R_REGISTER | register_address;
+    uint8_t command = NRF24L01P_CMD_R_REGISTER | address;
     uint8_t status;
 
     cs_low();
 
-	if(SPI1_TransmitReceive(command, &status) != 0)
+	if(config.interface.spi_tx_rx(command, &status) != 0)
 		return -1;
-	if(SPI1_TransmitReceive(0xFF, register_value) != 0)
+	if(config.interface.spi_tx_rx(0xFF, value) != 0)
 		return -1;
 
     cs_high();
@@ -46,19 +46,17 @@ static uint64_t read_register_multibyte(uint8_t reg, uint8_t num_bytes)
 {
     uint8_t command = NRF24L01P_CMD_R_REGISTER | reg;
     uint64_t register_value = 0;
-    uint8_t read_byte;
+    uint8_t read_byte, status;
 
     cs_low();
 
-	LL_SPI_TransmitData8(NRF24L01P_SPI, command); 		// Transmit command
-	while (!transmit_done() || !receive_done());
-	(void) LL_SPI_ReceiveData8(NRF24L01P_SPI); 			// Read status
+    if(config.interface.spi_tx_rx(command, &status) != 0)
+    	return -1;
 
-	for(int i = 0; i < num_bytes; i++)
+    for(int i = 0; i < num_bytes; i++)
 	{
-		LL_SPI_TransmitData8(NRF24L01P_SPI, 0xFF); 			// Send dummy byte to receive register value
-		while (!transmit_done() || !receive_done());
-		read_byte = LL_SPI_ReceiveData8(NRF24L01P_SPI); 	// Read byte
+		if(config.interface.spi_tx_rx(0xFF, &read_byte) != 0)
+			return -1;
 		register_value |= ((uint64_t)read_byte << (i * 8));	// Add read byte into register_value variable
 	}
 
@@ -74,12 +72,11 @@ static uint8_t write_register(uint8_t reg, uint8_t payload)
 
     cs_low();
 
-    LL_SPI_TransmitData8(NRF24L01P_SPI, command); 		// Send command
-    while (!transmit_done() || !receive_done());
-    status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status
+    if(config.interface.spi_tx_rx(command, &status) != 0)
+    	return -1;
 
-	LL_SPI_TransmitData8(NRF24L01P_SPI, payload); 		// Send value
-	while (!transmit_done()); 	// Wait until transmission is complete
+    if(config.interface.spi_tx(payload))
+		return -1;
 
     cs_high();
 
@@ -94,15 +91,14 @@ static uint8_t write_register_multibyte(uint8_t reg, uint64_t payload, uint8_t n
 
     cs_low();
 
-    LL_SPI_TransmitData8(NRF24L01P_SPI, command); 		// Send command
-    while (!transmit_done() || !receive_done());
-    status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status
+    if(config.interface.spi_tx_rx(command, &status) != 0)
+        return -1;
 
-	for(int i = 0; i < num_bytes; i++)
+    for(int i = 0; i < num_bytes; i++)
 	{
 		payload_byte = (uint8_t)((payload >> (i * 8)) & 0xFF);	// Extract byte from payload (LSB first)
-		LL_SPI_TransmitData8(NRF24L01P_SPI, payload_byte); 		// Send value
-		while (!transmit_done()); 		// Wait until transmission is complete
+		if(config.interface.spi_tx(payload_byte))
+			return -1;
 	}
 
     cs_high();
@@ -116,21 +112,12 @@ static uint8_t send_command(uint8_t command)
 
 	cs_low();
 
-	LL_SPI_TransmitData8(NRF24L01P_SPI, command); 		// Send command
-	while (!transmit_done() || !receive_done());
-	status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status (optional)
+	if(config.interface.spi_tx_rx(command, &status) != 0)
+		return -1;
 
 	cs_high();
 
 	return status;
-}
-
-void nrf24l01p_set_ce(uint8_t state)
-{
-	if (state)
-		LL_GPIO_SetOutputPin(NRF24L01P_CE_PIN_PORT, NRF24L01P_CE_PIN_NUMBER);
-	else
-		LL_GPIO_ResetOutputPin(NRF24L01P_CE_PIN_PORT, NRF24L01P_CE_PIN_NUMBER);
 }
 
 int8_t nrf24l01p_init(nrf24l01p_config_t* _config)
@@ -174,7 +161,7 @@ void nrf24l01p_tx_irq()
     uint8_t status = nrf24l01p_get_status_and_clear_IRQ_flags();
     uint8_t tx_ds = status & 0x20;
 
-    nrf24l01p_set_ce(0);
+    config.interface.set_ce(0);
     nrf24l01p_power_down();
 
     if(tx_ds)
@@ -188,7 +175,7 @@ void nrf24l01p_reset()
 {
     // Reset pins
     cs_high();
-    nrf24l01p_set_ce(0);
+    config.interface.set_ce(0);
 
     // Reset registers
     write_register(NRF24L01P_REG_CONFIG, 		0x08);

@@ -47,7 +47,19 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+// Following function prototypes needed here to init private variable nrf24_config
+void nrf24l01p_set_cs(uint8_t state);
+void nrf24l01p_set_ce(uint8_t state);
+
 nrf24l01p_config_t nrf24_config = {
+		.interface = {
+				.set_cs = &nrf24l01p_set_cs,
+				.set_ce = &nrf24l01p_set_ce,
+				.spi_tx = &SPI1_Transmit,
+				.spi_rx = &SPI1_Receive,
+				.spi_tx_rx = &SPI1_TransmitReceive
+		},
 		.channel_MHz = 2500,
 		.address_width = 5,
 		.data_rate = _1Mbps,
@@ -213,6 +225,22 @@ void EXTI1_Callback(void)
 		nrf24l01p_tx_irq();
 #endif
 	}
+}
+
+void nrf24l01p_set_cs(uint8_t state)
+{
+	if (state)
+		LL_GPIO_SetOutputPin(nRF24_CSN_GPIO_Port, nRF24_CSN_Pin);
+	else
+		LL_GPIO_ResetOutputPin(nRF24_CSN_GPIO_Port, nRF24_CSN_Pin);
+}
+
+void nrf24l01p_set_ce(uint8_t state)
+{
+	if (state)
+		LL_GPIO_SetOutputPin(nRF24_CE_GPIO_Port, nRF24_CE_Pin);
+	else
+		LL_GPIO_ResetOutputPin(nRF24_CE_GPIO_Port, nRF24_CE_Pin);
 }
 /* USER CODE END 4 */
 

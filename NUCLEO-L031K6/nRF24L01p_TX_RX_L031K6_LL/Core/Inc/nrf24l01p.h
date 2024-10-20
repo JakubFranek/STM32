@@ -33,7 +33,25 @@ typedef enum
 	_2byte = 1
 } nrf24l01p_crc_length_t;
 
+typedef void (*nrf24l01p_set_cs_t)(uint8_t state);
+typedef void (*nrf24l01p_set_ce_t)(uint8_t state);
+typedef uint8_t (*nrf24l01p_spi_tx_t)(uint8_t register_address);
+typedef uint8_t (*nrf24l01p_spi_rx_t)(uint8_t* register_value);
+typedef uint8_t (*nrf24l01p_spi_tx_rx_t)(uint8_t register_address, uint8_t* register_value);
+
+typedef struct{
+	nrf24l01p_set_cs_t set_cs;
+	nrf24l01p_set_ce_t set_ce;
+	nrf24l01p_spi_tx_t spi_tx;
+	nrf24l01p_spi_rx_t spi_rx;
+	nrf24l01p_spi_tx_rx_t spi_tx_rx;
+} nrf24l01p_interface_t;
+
+
 typedef struct {
+	// Interface
+	nrf24l01p_interface_t interface;
+
 	// General settings
 	uint16_t channel_MHz; 					// range 2400 to 2525 MHz
 	uint8_t address_width;					// range 3 to 5 bytes
@@ -53,7 +71,6 @@ typedef struct {
 
 
 /* High-level API functions */
-void nrf24l01p_set_ce(uint8_t state);
 int8_t nrf24l01p_init(nrf24l01p_config_t* config);
 
 void nrf24l01p_rx_receive(uint8_t* rx_payload);

@@ -111,7 +111,7 @@ uint8_t SPI1_Transmit(uint8_t tx_data)
 
 	LL_SPI_TransmitData8(SPI1, tx_data);
 
-	while(!LL_SPI_IsActiveFlag_TXE(SPI1) || LL_SPI_IsActiveFlag_BSY(SPI1));
+	while(!transmit_done());
 		if(TIM2_get_count() > 100)
 			return -1;
 
@@ -122,7 +122,7 @@ uint8_t SPI1_Receive(uint8_t* rx_data)
 {
 	TIM2_restart();
 
-	while(!LL_SPI_IsActiveFlag_RXNE(SPI1) || LL_SPI_IsActiveFlag_BSY(SPI1))
+	while(!receive_done())
 		if(TIM2_get_count() > 100)
 			return -1;
 
