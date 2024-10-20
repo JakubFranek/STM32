@@ -4,10 +4,10 @@
 
 /* ------------------------------ Macros ------------------------------ */
 #ifndef SET_BIT
-	#define SET_BIT(reg, bit) 		((reg) |= (1U << (bit)))
+	#define SET_BIT(reg, bit) 		((reg) |= (bit))
 #endif
 #ifndef CLEAR_BIT
-	#define CLEAR_BIT(reg, bit)  	((reg) &= ~(1U << (bit)))
+	#define CLEAR_BIT(reg, bit)  	((reg) &= ~(bit))
 #endif
 #ifndef READ_BIT
 	#define READ_BIT(REG, BIT)    	((REG) & (BIT))
