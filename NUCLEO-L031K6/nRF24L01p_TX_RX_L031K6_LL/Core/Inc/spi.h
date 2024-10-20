@@ -39,7 +39,9 @@ extern "C" {
 void MX_SPI1_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-
+uint8_t SPI1_Transmit(uint8_t tx_data);
+uint8_t SPI1_Receive(uint8_t* rx_data);
+uint8_t SPI1_TransmitReceive(uint8_t tx_data, uint8_t* rx_data);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

@@ -131,9 +131,12 @@ int main(void)
 #endif
 
 #ifdef TRANSMITTER
+
 	  nrf24l01p_power_up();
+
 	  TIM2_delay_us(1500);
 	  nrf24l01p_set_ce(1);
+
 	  TIM2_delay_us(130);
 	  nrf24l01p_write_tx_fifo(tx_data);
 	  for(int i= 0; i < 8; i++)

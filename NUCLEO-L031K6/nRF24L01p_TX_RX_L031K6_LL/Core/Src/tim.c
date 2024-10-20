@@ -61,10 +61,28 @@ void TIM2_delay_us(uint16_t us)
 {
 	uint16_t ticks = us;
 
+	LL_TIM_DisableCounter(TIM2);
 	LL_TIM_SetCounter(TIM2, 0);
 	LL_TIM_EnableCounter(TIM2);
 	while (LL_TIM_GetCounter(TIM2) < ticks);
 	LL_TIM_DisableCounter(TIM2);
+}
+
+void TIM2_restart()
+{
+	LL_TIM_DisableCounter(TIM2);
+	LL_TIM_SetCounter(TIM2, 0);
+	LL_TIM_EnableCounter(TIM2);
+}
+
+void TIM2_stop()
+{
+	LL_TIM_DisableCounter(TIM2);
+}
+
+uint16_t TIM2_get_count()
+{
+	return LL_TIM_GetCounter(TIM2);
 }
 
 /* USER CODE END 1 */

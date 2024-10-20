@@ -25,27 +25,21 @@ static uint8_t receive_done()
 	return done;
 }
 
-static uint8_t read_register(uint8_t reg)
+static uint8_t read_register(uint8_t register_address, uint8_t* register_value)
 {
-    uint8_t command = NRF24L01P_CMD_R_REGISTER | reg;
-    uint8_t register_value;
+    uint8_t command = NRF24L01P_CMD_R_REGISTER | register_address;
+    uint8_t status;
 
     cs_low();
 
-	LL_SPI_TransmitData8(NRF24L01P_SPI, command); 		// Transmit command
-	while (!transmit_done()); 	// Wait until transmission is complete
-
-	while (!receive_done());	// Wait until the RXNE flag is set to read the status byte
-	(void) LL_SPI_ReceiveData8(NRF24L01P_SPI); 			// Read status
-
-	LL_SPI_TransmitData8(NRF24L01P_SPI, 0xFF); 			// Send dummy byte to receive register value
-	while (!transmit_done()); 	// Wait until the transmission is complete
-	while (!receive_done());	// Wait until the RXNE flag is set to read the value
-	register_value = LL_SPI_ReceiveData8(NRF24L01P_SPI);// Read register value
+	if(SPI1_TransmitReceive(command, &status) != 0)
+		return -1;
+	if(SPI1_TransmitReceive(0xFF, register_value) != 0)
+		return -1;
 
     cs_high();
 
-    return register_value;
+    return 0;
 }
 
 static uint64_t read_register_multibyte(uint8_t reg, uint8_t num_bytes)
@@ -57,17 +51,13 @@ static uint64_t read_register_multibyte(uint8_t reg, uint8_t num_bytes)
     cs_low();
 
 	LL_SPI_TransmitData8(NRF24L01P_SPI, command); 		// Transmit command
-	while (!transmit_done()); 	// Wait until transmission is complete
-
-	while (!receive_done());	// Wait until the RXNE flag is set to read the status byte
+	while (!transmit_done() || !receive_done());
 	(void) LL_SPI_ReceiveData8(NRF24L01P_SPI); 			// Read status
 
 	for(int i = 0; i < num_bytes; i++)
 	{
 		LL_SPI_TransmitData8(NRF24L01P_SPI, 0xFF); 			// Send dummy byte to receive register value
-		while (!transmit_done()); 	// Wait until the transmission is complete
-
-		while (!receive_done());	// Wait until the RXNE flag is set to read the value
+		while (!transmit_done() || !receive_done());
 		read_byte = LL_SPI_ReceiveData8(NRF24L01P_SPI); 	// Read byte
 		register_value |= ((uint64_t)read_byte << (i * 8));	// Add read byte into register_value variable
 	}
@@ -85,10 +75,8 @@ static uint8_t write_register(uint8_t reg, uint8_t payload)
     cs_low();
 
     LL_SPI_TransmitData8(NRF24L01P_SPI, command); 		// Send command
-	while (!transmit_done()); 	// Wait until transmission is complete
-
-	while (!receive_done()); 	// Wait for status byte
-	status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status
+    while (!transmit_done() || !receive_done());
+    status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status
 
 	LL_SPI_TransmitData8(NRF24L01P_SPI, payload); 		// Send value
 	while (!transmit_done()); 	// Wait until transmission is complete
@@ -107,10 +95,8 @@ static uint8_t write_register_multibyte(uint8_t reg, uint64_t payload, uint8_t n
     cs_low();
 
     LL_SPI_TransmitData8(NRF24L01P_SPI, command); 		// Send command
-	while (!transmit_done()); 	// Wait until transmission is complete
-
-	while (!receive_done()); 	// Wait for status byte
-	status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status
+    while (!transmit_done() || !receive_done());
+    status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status
 
 	for(int i = 0; i < num_bytes; i++)
 	{
@@ -131,9 +117,7 @@ static uint8_t send_command(uint8_t command)
 	cs_low();
 
 	LL_SPI_TransmitData8(NRF24L01P_SPI, command); 		// Send command
-	while (!transmit_done()); 	// Wait until transmission is complete
-
-	while (!receive_done()); 	// Wait for status byte
+	while (!transmit_done() || !receive_done());
 	status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status (optional)
 
 	cs_high();
@@ -231,7 +215,8 @@ void nrf24l01p_reset()
 
 void nrf24l01p_set_prx_mode()
 {
-    uint8_t new_config = read_register(NRF24L01P_REG_CONFIG);
+    uint8_t new_config;
+    read_register(NRF24L01P_REG_CONFIG, &new_config);
     new_config |= 1;
 
     write_register(NRF24L01P_REG_CONFIG, new_config);
@@ -239,7 +224,8 @@ void nrf24l01p_set_prx_mode()
 
 void nrf24l01p_set_ptx_mode()
 {
-    uint8_t new_config = read_register(NRF24L01P_REG_CONFIG);
+    uint8_t new_config;
+    read_register(NRF24L01P_REG_CONFIG, &new_config);
     new_config &= 0xFE;
 
     write_register(NRF24L01P_REG_CONFIG, new_config);
@@ -267,8 +253,7 @@ uint8_t nrf24l01p_read_rx_fifo(uint8_t* rx_payload)
 	for (uint8_t i = 0; i < config.data_length; i++)
 	{
 		LL_SPI_TransmitData8(NRF24L01P_SPI, 0xFF); 			// Send dummy byte to receive payload
-		while (!transmit_done()); 	// Wait until transmission is complete
-		while (!receive_done()); 	// Wait for payload byte
+		while (!transmit_done() || !receive_done());
 		rx_payload[i] = LL_SPI_ReceiveData8(NRF24L01P_SPI); // Read payload byte
 	}
 
@@ -284,9 +269,7 @@ uint8_t nrf24l01p_write_tx_fifo(uint8_t* tx_payload)
     cs_low();
 
     LL_SPI_TransmitData8(NRF24L01P_SPI, NRF24L01P_CMD_W_TX_PAYLOAD); 	// Send command
-    while (!transmit_done()); 	// Wait until transmission is complete
-
-    while (!receive_done()); 	// Wait for status byte
+    while (!transmit_done() || !receive_done());
     status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status (optional)
 
 	for (uint8_t i = 0; i < config.data_length; i++)
@@ -323,9 +306,7 @@ uint8_t nrf24l01p_get_status_and_clear_IRQ_flags()
 	cs_low();
 
 	LL_SPI_TransmitData8(NRF24L01P_SPI, NRF24L01P_CMD_W_REGISTER | NRF24L01P_REG_STATUS);
-	while (!transmit_done()); 	// Wait until transmission is complete
-
-	while (!receive_done()); 	// Wait for status byte
+	while (!transmit_done() || !receive_done());
 	status = LL_SPI_ReceiveData8(NRF24L01P_SPI); 		// Read status
 
 	LL_SPI_TransmitData8(NRF24L01P_SPI, status);		// Send value
@@ -338,7 +319,9 @@ uint8_t nrf24l01p_get_status_and_clear_IRQ_flags()
 
 uint8_t nrf24l01p_get_fifo_status()
 {
-    return read_register(NRF24L01P_REG_FIFO_STATUS);
+	uint8_t status;
+    read_register(NRF24L01P_REG_FIFO_STATUS, &status);
+    return status;
 }
 
 void nrf24l01p_rx_set_payload_length(uint8_t index, uint8_t bytes)
@@ -372,7 +355,8 @@ void nrf24l01p_clear_max_rt()
 
 void nrf24l01p_power_up()
 {
-    uint8_t new_config = read_register(NRF24L01P_REG_CONFIG);
+    uint8_t new_config;
+    read_register(NRF24L01P_REG_CONFIG, &new_config);
     new_config |= 2;
 
     write_register(NRF24L01P_REG_CONFIG, new_config);
@@ -380,7 +364,8 @@ void nrf24l01p_power_up()
 
 void nrf24l01p_power_down()
 {
-    uint8_t new_config = read_register(NRF24L01P_REG_CONFIG);
+    uint8_t new_config;
+    read_register(NRF24L01P_REG_CONFIG, &new_config);
     new_config &= 0xFD;
 
     write_register(NRF24L01P_REG_CONFIG, new_config);
@@ -388,7 +373,8 @@ void nrf24l01p_power_down()
 
 void nrf24l01p_set_crc_length(nrf24l01p_crc_length_t length)
 {
-    uint8_t new_config = read_register(NRF24L01P_REG_CONFIG);
+    uint8_t new_config;
+    read_register(NRF24L01P_REG_CONFIG, &new_config);
 
     switch(length)
     {
@@ -410,7 +396,8 @@ void nrf24l01p_set_address_widths(uint8_t address_width)
 
 void nrf24l01p_set_auto_retransmit_count(uint8_t count)
 {
-    uint8_t new_setup_retr = read_register(NRF24L01P_REG_SETUP_RETR);
+    uint8_t new_setup_retr;
+    read_register(NRF24L01P_REG_SETUP_RETR, &new_setup_retr);
 
     new_setup_retr &= 0xF0;
     new_setup_retr |= count;
@@ -419,7 +406,8 @@ void nrf24l01p_set_auto_retransmit_count(uint8_t count)
 
 void nrf24l01p_set_auto_retransmit_delay(uint8_t delay_250us)
 {
-    uint8_t new_setup_retr = read_register(NRF24L01P_REG_SETUP_RETR);
+    uint8_t new_setup_retr;
+    read_register(NRF24L01P_REG_SETUP_RETR, &new_setup_retr);
 
     new_setup_retr &= 0x0F;    // Reset ARD register 0
     new_setup_retr |= (delay_250us - 1) << 4;
@@ -440,7 +428,9 @@ void nrf24l01p_set_rf_channel(uint16_t channel_MHz)
 
 void nrf24l01p_set_rf_tx_output_power(nrf24l01p_output_power_t output_power)
 {
-    uint8_t new_rf_setup = read_register(NRF24L01P_REG_RF_SETUP) & 0xF9;
+    uint8_t new_rf_setup;
+    read_register(NRF24L01P_REG_RF_SETUP, &new_rf_setup);
+    new_rf_setup &= 0xF9;
     new_rf_setup |= (output_power << 1);
 
     write_register(NRF24L01P_REG_RF_SETUP, new_rf_setup);
@@ -448,7 +438,9 @@ void nrf24l01p_set_rf_tx_output_power(nrf24l01p_output_power_t output_power)
 
 void nrf24l01p_set_rf_data_rate(nrf24l01p_data_rate_t data_rate)
 {
-    uint8_t new_rf_setup = read_register(NRF24L01P_REG_RF_SETUP) & 0xD7;
+    uint8_t new_rf_setup;
+    read_register(NRF24L01P_REG_RF_SETUP, &new_rf_setup);
+    new_rf_setup &= 0xD7;
 
     switch(data_rate)
     {
