@@ -1,5 +1,5 @@
 #include "nrf24l01p.h"
-#include <stddef.h>
+#include <stddef.h>		// definitions of NULL, size_t
 
 
 /* ------------------------------ Macros ------------------------------ */
@@ -62,7 +62,7 @@ nrf24l01p_40bit_reg_rst_vals_t reg_rst_vals_40bit[] = {
 };
 
 /* ------------------------------ Static variables ------------------------------ */
-static nrf24l01p_config_t config;
+static nrf24l01p_config_t config;	// This is the "handler" struct
 
 
 /* ------------------------------ Static functions ------------------------------ */
@@ -281,6 +281,30 @@ nrf24l01p_error_t nrf24l01p_set_tx_addr(uint64_t address)
 	return NRF24L01P_SUCCESS;
 }
 
+nrf24l01p_error_t nrf24l01p_read_rx_addr(uint8_t index, uint64_t* address)	// index must be integer from 0 to 5
+{
+	if (index > 5)
+		return NRF24L01P_INVALID_VALUE;
+
+	if (index == 0 || index == 1)
+		NRF24L01P_CHECK_ERROR(read_register_multibyte(NRF24L01P_REG_RX_ADDR_P0 + index, address, config.address_width));
+	else
+	{
+		uint8_t address_byte;
+		NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_RX_ADDR_P0 + index, &address_byte));
+		*address = (uint64_t) address_byte;
+	}
+
+
+	return NRF24L01P_SUCCESS;
+}
+
+nrf24l01p_error_t nrf24l01p_read_tx_addr(uint64_t* address)
+{
+	NRF24L01P_CHECK_ERROR(read_register_multibyte(NRF24L01P_REG_TX_ADDR, address, config.address_width));
+
+	return NRF24L01P_SUCCESS;
+}
 
 nrf24l01p_error_t nrf24l01p_power_up()
 {

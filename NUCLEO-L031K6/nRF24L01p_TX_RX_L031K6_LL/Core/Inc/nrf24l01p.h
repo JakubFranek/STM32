@@ -1,7 +1,7 @@
 #ifndef __NRF24L01P_H__
 #define __NRF24L01P_H__
 
-#include "spi.h"    // header from STM32CubeMX code generator, expects LL API
+#include <stdint.h>		// definition of uint8_t etc
 
 /*----------- nRF24L01+ Commands -----------*/
 #define NRF24L01P_CMD_R_REGISTER			0b00000000
@@ -161,6 +161,7 @@
 #define NRF24L01P_REG_FEATURE_EN_ACK_PAY		(1U << 1)
 #define NRF24L01P_REG_FEATURE_EN_DYN_ACK		(1U << 0)
 
+
 /*----------- nRF24L01+ Enums, Structs and Function Pointers -----------*/
 typedef enum {
 	NRF24L01P_SUCCESS = 0,
@@ -263,6 +264,8 @@ nrf24l01p_error_t nrf24l01p_set_ptx_mode();
 
 nrf24l01p_error_t nrf24l01p_set_rx_addr(uint8_t index, uint64_t address);
 nrf24l01p_error_t nrf24l01p_set_tx_addr(uint64_t address);
+nrf24l01p_error_t nrf24l01p_read_rx_addr(uint8_t index, uint64_t* address);
+nrf24l01p_error_t nrf24l01p_read_tx_addr(uint64_t* address);
 
 nrf24l01p_error_t nrf24l01p_power_up();
 nrf24l01p_error_t nrf24l01p_power_down();

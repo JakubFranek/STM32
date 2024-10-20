@@ -152,9 +152,9 @@ int main(void)
 	  TIM2_delay_us(130);
 	  nrf24l01p_write_tx_fifo(tx_data);
 	  for(int i= 0; i < 8; i++)
-	  	  {
-	  		  tx_data[i]++;
-	  	  }
+	  {
+		  tx_data[i]++;
+	  }
 #endif
 	  //LL_GPIO_SetOutputPin(NRF24L01P_CE_PIN_PORT, NRF24L01P_CE_PIN_NUMBER);
 	  LL_mDelay(250);
