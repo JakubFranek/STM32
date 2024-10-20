@@ -111,7 +111,7 @@ uint8_t SPI1_Transmit(uint8_t tx_data)
 
 	LL_SPI_TransmitData8(SPI1, tx_data);
 
-	while(!transmit_done());
+	while(!transmit_done())
 		if(TIM2_get_count() > 100)
 			return -1;
 
@@ -136,7 +136,7 @@ uint8_t SPI1_TransmitReceive(uint8_t tx_data, uint8_t* rx_data)
 
 	LL_SPI_TransmitData8(SPI1, tx_data);
 
-	while (!transmit_done() || !receive_done());
+	while (!transmit_done() || !receive_done())
 		if(TIM2_get_count() > 100)
 			return -1;
 
