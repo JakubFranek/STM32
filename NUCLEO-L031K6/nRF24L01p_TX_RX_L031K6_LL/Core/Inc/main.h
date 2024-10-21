@@ -69,7 +69,8 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-void EXTI1_Callback(void);
+void nrf24l01p_IRQ_callback(void);
+void TIM21_IRQ_callback(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

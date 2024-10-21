@@ -152,12 +152,26 @@ void EXTI0_1_IRQHandler(void)
   {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_1);
     /* USER CODE BEGIN LL_EXTI_LINE_1 */
-    EXTI1_Callback();	// user function located in main
+    // EXTI1 interrupt line is used because the nRF24_IRQ pin is PB1 (all PX1 pins are EXTI line 1)
+    nrf24l01p_IRQ_callback();	// user function located in main
     /* USER CODE END LL_EXTI_LINE_1 */
   }
   /* USER CODE BEGIN EXTI0_1_IRQn 1 */
 
   /* USER CODE END EXTI0_1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM21 global interrupt.
+  */
+void TIM21_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM21_IRQn 0 */
+	TIM21_IRQ_callback();
+  /* USER CODE END TIM21_IRQn 0 */
+  /* USER CODE BEGIN TIM21_IRQn 1 */
+
+  /* USER CODE END TIM21_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

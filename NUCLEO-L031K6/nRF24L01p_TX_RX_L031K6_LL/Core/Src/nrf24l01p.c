@@ -212,9 +212,6 @@ nrf24l01p_error_t nrf24l01p_irq(nrf24l01p_irq_t* irq_sources)
     irq_sources->tx_ds = READ_BIT(status, NRF24L01P_REG_STATUS_TX_DS);
     irq_sources->max_rt = READ_BIT(status, NRF24L01P_REG_STATUS_MAX_RT);
 
-    config.interface.set_ce(0);
-    NRF24L01P_CHECK_ERROR(nrf24l01p_power_down());
-
     return NRF24L01P_SUCCESS;
 }
 

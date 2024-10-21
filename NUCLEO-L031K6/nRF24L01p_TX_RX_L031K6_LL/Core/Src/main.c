@@ -75,7 +75,7 @@ nrf24l01p_config_t nrf24_config = {
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void EXTI1_Callback(void);
+void nrf24l01p_IRQ_callback(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -115,6 +115,7 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI1_Init();
   MX_TIM2_Init();
+  MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
   LL_SPI_Enable(SPI1);
   nrf24l01p_init(&nrf24_config);
@@ -145,16 +146,12 @@ int main(void)
 #ifdef TRANSMITTER
 
 	  nrf24l01p_power_up();
+	  schedule_interrupt(1500);	// activating CE after min. 1.5 ms per nRF24L01+ datasheet specification
+	  nrf24l01p_write_tx_fifo(tx_data);	// TX data can be written any time, nRF24L01+ will send it when ready
 
-	  TIM2_delay_us(1500);
-	  nrf24l01p_set_ce(1);
-
-	  TIM2_delay_us(130);
-	  nrf24l01p_write_tx_fifo(tx_data);
 	  for(int i= 0; i < 8; i++)
-	  {
 		  tx_data[i]++;
-	  }
+
 #endif
 	  //LL_GPIO_SetOutputPin(NRF24L01P_CE_PIN_PORT, NRF24L01P_CE_PIN_NUMBER);
 	  LL_mDelay(250);
@@ -213,8 +210,9 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void EXTI1_Callback(void)
+void nrf24l01p_IRQ_callback(void)
 {
+	// Logic 0 check... should not be necessary because interrupt is set for falling edge though
 	if(!LL_GPIO_IsInputPinSet(nRF24_IRQ_GPIO_Port, nRF24_IRQ_Pin))
 	{
 		nrf24l01p_irq_t irq_sources;
@@ -232,9 +230,20 @@ void EXTI1_Callback(void)
 		else if (irq_sources.max_rt)
 			LL_GPIO_ResetOutputPin(LD3_GPIO_Port, LD3_Pin);
 #endif
+
+		nrf24l01p_power_down();
+		nrf24l01p_set_ce(0);
 	}
 }
 
+void TIM21_IRQ_callback(void)
+{
+	// do scheduled action here!
+	nrf24l01p_set_ce(1);
+	disable_scheduled_interrupt();
+}
+
+/*---------- Functions to be passed to nRF24 driver via pointer ---------*/
 void nrf24l01p_set_cs(uint8_t state)
 {
 	if (state)
@@ -250,6 +259,7 @@ void nrf24l01p_set_ce(uint8_t state)
 	else
 		LL_GPIO_ResetOutputPin(nRF24_CE_GPIO_Port, nRF24_CE_Pin);
 }
+
 /* USER CODE END 4 */
 
 /**
