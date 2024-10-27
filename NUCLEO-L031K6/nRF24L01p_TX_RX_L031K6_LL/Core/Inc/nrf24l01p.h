@@ -2,6 +2,7 @@
 #define __NRF24L01P_H__
 
 #include <stdint.h>		// definition of uint8_t etc
+#include <stdbool.h>	// definition of bool
 
 /*----------- nRF24L01+ Commands -----------*/
 #define NRF24L01P_CMD_R_REGISTER			0b00000000
@@ -166,13 +167,15 @@
 typedef enum {
 	NRF24L01P_SUCCESS = 0,
 	NRF24L01P_SPI_ERROR = -1,
-	NRF24L01P_INVALID_VALUE = -2
+	NRF24L01P_INVALID_VALUE = -2,
+	NRF24L01P_INVALID_OPERATION = -3,
+	NRF24L01P_POINTER_NULL = -4
 } nrf24l01p_error_t;
 
 typedef struct {
-	uint8_t rx_dr;		// data received
-	uint8_t tx_ds;		// transmission successful
-	uint8_t max_rt;		// maximum retransmit attempts reached
+	bool rx_dr;		// data received
+	bool tx_ds;		// transmission successful
+	bool max_rt;	// maximum retransmit attempts reached
 } nrf24l01p_irq_t;
 
 typedef struct {
@@ -230,66 +233,89 @@ typedef struct{
 	nrf24l01p_spi_tx_rx_t spi_tx_rx;
 } nrf24l01p_interface_t;
 
-// Handler struct for use in application code
 typedef struct {
-	// Interface
-	nrf24l01p_interface_t interface;
-
-	// General settings
 	uint16_t channel_MHz; 					// range 2400 to 2525 MHz
 	uint8_t address_width;					// range 3 to 5 bytes
 	nrf24l01p_data_rate_t data_rate;
 	nrf24l01p_crc_length_t crc_length;
-	uint8_t data_length;					// range 0 to 32 bytes
-
-	// TX settings
-	nrf24l01p_output_power_t output_power;
-	uint8_t auto_ack_pipes;					// interpreted as binary, 2 MSBs ignored
-	uint8_t auto_retransmit_count;			// range 0 to 15
-	uint8_t auto_retransmit_delay_250us;	// range 1 to 16 (in multiples of 250 us)
+	bool enable_irq_tx_ds;
+	bool enable_irq_max_rt;
+	bool enable_irq_rx_dr;
 } nrf24l01p_config_t;
 
+typedef struct {
+	nrf24l01p_output_power_t output_power;
+	uint8_t auto_retransmit_count;			// range 0 to 15
+	uint8_t auto_retransmit_delay_250us;	// range 1 to 16 (in multiples of 250 us)
+	uint64_t address;						// exactly address_width bytes (see "General settings")
+} nrf24l01p_tx_config_t;
+
+typedef struct {
+	uint8_t enable_pipes;					// interpreted as binary, 2 MSBs ignored, '1' = pipe enabled
+	uint8_t auto_ack_pipes;					// interpreted as binary, 2 MSBs ignored, '1' = auto ACK enabled
+	uint64_t address_p0;					// exactly address_width bytes (see "General settings")
+	uint64_t address_p1;					// exactly address_width bytes (see "General settings")
+	uint8_t address_p2;						// always 1 byte
+	uint8_t address_p3;						// always 1 byte
+	uint8_t address_p4;						// always 1 byte
+	uint8_t address_p5;						// always 1 byte
+	uint8_t data_length[6];					// range 1 to 32 bytes
+} nrf24l01p_rx_config_t;
+
+// Handler struct for use in application code
+typedef struct {
+	nrf24l01p_interface_t interface;
+	nrf24l01p_config_t config;
+	nrf24l01p_tx_config_t tx_config;
+	nrf24l01p_rx_config_t rx_config;
+} nrf24l01p_device_t;
 
 /*----------- High-level API functions -----------*/
-nrf24l01p_error_t nrf24l01p_init(nrf24l01p_config_t* config);
+nrf24l01p_error_t nrf24l01p_init_prx(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_init_ptx(nrf24l01p_device_t* device);
 
-nrf24l01p_error_t nrf24l01p_rx_receive(uint8_t* rx_payload);
-nrf24l01p_error_t nrf24l01p_tx_transmit(uint8_t* tx_payload);
+nrf24l01p_error_t nrf24l01p_rx_receive(nrf24l01p_device_t* device, uint8_t* rx_payload);
+nrf24l01p_error_t nrf24l01p_tx_transmit(nrf24l01p_device_t* device, uint8_t* tx_payload, uint8_t num_bytes);
 
-nrf24l01p_error_t nrf24l01p_irq(nrf24l01p_irq_t* irq_sources);
-nrf24l01p_error_t nrf24l01p_reset();
+nrf24l01p_error_t nrf24l01p_irq(nrf24l01p_device_t* device, nrf24l01p_irq_t* irq_sources);
+nrf24l01p_error_t nrf24l01p_reset(nrf24l01p_device_t* device);
 
-nrf24l01p_error_t nrf24l01p_set_prx_mode();
-nrf24l01p_error_t nrf24l01p_set_ptx_mode();
+nrf24l01p_error_t nrf24l01p_read_rx_addr(nrf24l01p_device_t* device, uint8_t pipe, uint64_t* address);
+nrf24l01p_error_t nrf24l01p_read_tx_addr(nrf24l01p_device_t* device, uint64_t* address);
 
-nrf24l01p_error_t nrf24l01p_set_rx_addr(uint8_t index, uint64_t address);
-nrf24l01p_error_t nrf24l01p_set_tx_addr(uint64_t address);
-nrf24l01p_error_t nrf24l01p_read_rx_addr(uint8_t index, uint64_t* address);
-nrf24l01p_error_t nrf24l01p_read_tx_addr(uint64_t* address);
-
-nrf24l01p_error_t nrf24l01p_power_up();
-nrf24l01p_error_t nrf24l01p_power_down();
+nrf24l01p_error_t nrf24l01p_power_up(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_power_down(nrf24l01p_device_t* device);
 
 
 /*----------- Low-level API functions -----------*/
-nrf24l01p_error_t nrf24l01p_get_status();
-nrf24l01p_error_t nrf24l01p_get_status_and_clear_IRQ_flags();
-nrf24l01p_error_t nrf24l01p_clear_flag(uint8_t flag);
-nrf24l01p_error_t nrf24l01p_get_fifo_status();
+nrf24l01p_error_t nrf24l01p_set_prx_mode(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_ptx_mode(nrf24l01p_device_t* device);
 
-nrf24l01p_error_t nrf24l01p_read_rx_fifo(uint8_t* rx_payload);
-nrf24l01p_error_t nrf24l01p_write_tx_fifo(uint8_t* tx_payload);
-nrf24l01p_error_t nrf24l01p_flush_rx_fifo();
-nrf24l01p_error_t nrf24l01p_flush_tx_fifo();
+nrf24l01p_error_t nrf24l01p_get_status(nrf24l01p_device_t* device, uint8_t* status);
+nrf24l01p_error_t nrf24l01p_get_status_and_clear_IRQ_flags(nrf24l01p_device_t* device, uint8_t* status);
+nrf24l01p_error_t nrf24l01p_clear_flag(nrf24l01p_device_t* device, uint8_t flag);
+nrf24l01p_error_t nrf24l01p_get_fifo_status(nrf24l01p_device_t* device, uint8_t* fifo_status);
 
-nrf24l01p_error_t nrf24l01p_set_crc_length(nrf24l01p_crc_length_t length);
-nrf24l01p_error_t nrf24l01p_set_address_width(uint8_t address_width);
-nrf24l01p_error_t nrf24l01p_set_auto_retransmit_count(uint8_t count);
-nrf24l01p_error_t nrf24l01p_set_auto_retransmit_delay(uint8_t delay_250us);
-nrf24l01p_error_t nrf24l01p_set_auto_ack_pipes(uint8_t pipes);
-nrf24l01p_error_t nrf24l01p_set_rf_channel(uint16_t channel_MHz);
-nrf24l01p_error_t nrf24l01p_set_rf_data_rate(nrf24l01p_data_rate_t data_rate);
-nrf24l01p_error_t nrf24l01p_set_rf_tx_output_power(nrf24l01p_output_power_t output_power);
-nrf24l01p_error_t nrf24l01p_rx_set_payload_length(uint8_t index, uint8_t bytes);
+nrf24l01p_error_t nrf24l01p_read_rx_fifo(nrf24l01p_device_t* device, uint8_t* rx_payload);
+nrf24l01p_error_t nrf24l01p_write_tx_fifo(nrf24l01p_device_t* device, uint8_t* tx_payload, uint8_t num_bytes);
+nrf24l01p_error_t nrf24l01p_flush_rx_fifo(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_flush_tx_fifo(nrf24l01p_device_t* device);
+
+nrf24l01p_error_t nrf24l01p_init_general_config(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_crc_length(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_address_width(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_irq_masks(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_rf_channel(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_rf_data_rate(nrf24l01p_device_t* device);
+
+nrf24l01p_error_t nrf24l01p_set_tx_auto_retransmit_count(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_tx_auto_retransmit_delay(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_tx_output_power(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_tx_addr(nrf24l01p_device_t* device);
+
+nrf24l01p_error_t nrf24l01p_set_rx_addresses(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_rx_auto_ack_pipes(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_rx_pipes(nrf24l01p_device_t* device);
+nrf24l01p_error_t nrf24l01p_set_rx_payload_length(nrf24l01p_device_t* device);
 
 #endif /* __NRF24L01P_H__ */

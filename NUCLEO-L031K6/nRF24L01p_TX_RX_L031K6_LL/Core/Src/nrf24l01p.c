@@ -10,15 +10,19 @@
 	#define CLEAR_BIT(reg, bit)  	((reg) &= ~(bit))
 #endif
 #ifndef READ_BIT
-	#define READ_BIT(REG, BIT)    	((REG) & (BIT))
+	#define READ_BIT(reg, bit)    	((reg) & (bit))
 #endif
 
 #ifndef CLEAR_FIELD
-	#define CLEAR_FIELD(reg, mask)    			((reg) &= ~(mask))
+	#define CLEAR_FIELD(field, mask)    			((field) &= ~(mask))
 #endif
 
 #ifndef SET_FIELD
-	#define SET_FIELD(reg, val, mask, pos)  	((reg) |= (((val) << (pos)) & (mask)))
+	#define SET_FIELD(field, new_val, mask, pos)  	((field) |= (((new_val) << (pos)) & (mask)))
+#endif
+
+#ifndef READ_FIELD
+	#define READ_FIELD(field, mask)					((field) & (mask))
 #endif
 
 // Error-checking macro: if "expr" returns anything other than NRF24L01P_SUCCESS,
@@ -27,6 +31,12 @@
   nrf24l01p_error_t retval = expr; \
   if (retval != NRF24L01P_SUCCESS) { \
     return retval; \
+  } \
+} while (0)
+
+#define NRF24L01P_CHECK_NULL(expr) do { \
+  if (expr == NULL) { \
+      return NRF24L01P_POINTER_NULL; \
   } \
 } while (0)
 
@@ -61,152 +71,165 @@ nrf24l01p_40bit_reg_rst_vals_t reg_rst_vals_40bit[] = {
 	{NRF24L01P_REG_TX_ADDR,		NRF24L01P_REG_TX_ADDR_RSTVAL},
 };
 
-/* ------------------------------ Static variables ------------------------------ */
-static nrf24l01p_config_t config;	// This is the "handler" struct
-
-
 /* ------------------------------ Static functions ------------------------------ */
-static nrf24l01p_error_t read_register(uint8_t address, uint8_t* value)
+static nrf24l01p_error_t read_register(nrf24l01p_device_t* device, uint8_t address, uint8_t* value)
 {
-    uint8_t command = NRF24L01P_CMD_R_REGISTER | address;
+	uint8_t command = NRF24L01P_CMD_R_REGISTER | address;
     uint8_t status;
 
-    config.interface.set_cs(0);
+    device->interface.set_cs(0);
 
-	if(config.interface.spi_tx_rx(command, &status) != 0)
+	if(device->interface.spi_tx_rx(command, &status) != 0)
 		return NRF24L01P_SPI_ERROR;
-	if(config.interface.spi_tx_rx(0xFF, value) != 0)
+	if(device->interface.spi_tx_rx(0xFF, value) != 0)
 		return NRF24L01P_SPI_ERROR;
 
-	config.interface.set_cs(1);
+	device->interface.set_cs(1);
 
     return NRF24L01P_SUCCESS;
 }
 
-static nrf24l01p_error_t read_register_multibyte(uint8_t address, uint64_t* value, uint8_t num_bytes)
+static nrf24l01p_error_t read_register_multibyte(nrf24l01p_device_t* device, uint8_t address, uint64_t* value, uint8_t num_bytes)
 {
     uint8_t command = NRF24L01P_CMD_R_REGISTER | address;
     uint8_t read_byte, status;
     *value = 0;
 
-    config.interface.set_cs(0);
+    device->interface.set_cs(0);
 
-    if(config.interface.spi_tx_rx(command, &status) != 0)
+    if(device->interface.spi_tx_rx(command, &status) != 0)
     	return NRF24L01P_SPI_ERROR;
 
     for(int i = 0; i < num_bytes; i++)
 	{
-		if(config.interface.spi_tx_rx(0xFF, &read_byte) != 0)
+		if(device->interface.spi_tx_rx(0xFF, &read_byte) != 0)
 			return NRF24L01P_SPI_ERROR;
 		*value |= ((uint64_t)read_byte << (i * 8));
 	}
 
-    config.interface.set_cs(1);
+    device->interface.set_cs(1);
 
     return NRF24L01P_SUCCESS;
 }
 
-static nrf24l01p_error_t write_register(uint8_t address, uint8_t payload)
+static nrf24l01p_error_t write_register(nrf24l01p_device_t* device, uint8_t address, uint8_t payload)
 {
     uint8_t command = NRF24L01P_CMD_W_REGISTER | address;
     uint8_t status;
 
-    config.interface.set_cs(0);
+    device->interface.set_cs(0);
 
-    if(config.interface.spi_tx_rx(command, &status) != 0)
+    if(device->interface.spi_tx_rx(command, &status) != 0)
     	return NRF24L01P_SPI_ERROR;
 
-    if(config.interface.spi_tx(payload) != 0)
+    if(device->interface.spi_tx(payload) != 0)
 		return NRF24L01P_SPI_ERROR;
 
-    config.interface.set_cs(1);
+    device->interface.set_cs(1);
 
     return NRF24L01P_SUCCESS;
 }
 
-static nrf24l01p_error_t write_register_multibyte(uint8_t reg, uint64_t payload, uint8_t num_bytes)
+static nrf24l01p_error_t write_register_multibyte(nrf24l01p_device_t* device, uint8_t reg, uint64_t payload, uint8_t num_bytes)
 {
     uint8_t command = NRF24L01P_CMD_W_REGISTER | reg;
     uint8_t payload_byte;
     uint8_t status;
 
-    config.interface.set_cs(0);
+    device->interface.set_cs(0);
 
-    if(config.interface.spi_tx_rx(command, &status) != 0)
+    if(device->interface.spi_tx_rx(command, &status) != 0)
         return NRF24L01P_SPI_ERROR;
 
     for(int i = 0; i < num_bytes; i++)
 	{
 		payload_byte = (uint8_t)((payload >> (i * 8)) & 0xFF);	// Extract byte from payload (LSB first)
-		if(config.interface.spi_tx(payload_byte))
+		if(device->interface.spi_tx(payload_byte))
 			return NRF24L01P_SPI_ERROR;
 	}
 
-    config.interface.set_cs(1);
+    device->interface.set_cs(1);
 
     return NRF24L01P_SUCCESS;
 }
 
-static nrf24l01p_error_t send_command(uint8_t command)
+static nrf24l01p_error_t send_command(nrf24l01p_device_t* device, uint8_t command, uint8_t* status)
 {
-	uint8_t status;
+	device->interface.set_cs(0);
 
-	config.interface.set_cs(0);
-
-	if(config.interface.spi_tx_rx(command, &status) != 0)
+	if(device->interface.spi_tx_rx(command, status) != 0)
 		return NRF24L01P_SPI_ERROR;
 
-	config.interface.set_cs(1);
+	device->interface.set_cs(1);
 
 	return NRF24L01P_SUCCESS;
 }
 
 /* ------------------------------ High-level API ------------------------------ */
-nrf24l01p_error_t nrf24l01p_init(nrf24l01p_config_t* _config)
+nrf24l01p_error_t nrf24l01p_init_ptx(nrf24l01p_device_t* device)
 {
-	if (_config == NULL)
-		return NRF24L01P_SPI_ERROR;
-	config = *_config;
+	NRF24L01P_CHECK_NULL(device);
 
-	NRF24L01P_CHECK_ERROR(nrf24l01p_reset());
+	NRF24L01P_CHECK_ERROR(nrf24l01p_reset(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_init_general_config(device));
 
-    NRF24L01P_CHECK_ERROR(nrf24l01p_set_rf_channel(_config->channel_MHz));
-    NRF24L01P_CHECK_ERROR(nrf24l01p_set_rf_data_rate(_config->data_rate));
-    NRF24L01P_CHECK_ERROR(nrf24l01p_set_crc_length(_config->crc_length));
-    NRF24L01P_CHECK_ERROR(nrf24l01p_set_address_width(_config->address_width));
-
-    NRF24L01P_CHECK_ERROR(nrf24l01p_set_rf_tx_output_power(_config->output_power));
-    NRF24L01P_CHECK_ERROR(nrf24l01p_set_auto_retransmit_count(_config->auto_retransmit_count));
-    NRF24L01P_CHECK_ERROR(nrf24l01p_set_auto_retransmit_delay(_config->auto_retransmit_delay_250us));
-    NRF24L01P_CHECK_ERROR(nrf24l01p_set_auto_ack_pipes(_config->auto_ack_pipes));
-
-    NRF24L01P_CHECK_ERROR(nrf24l01p_rx_set_payload_length(0, _config->data_length));
+    // TX config
+    NRF24L01P_CHECK_ERROR(nrf24l01p_set_tx_output_power(device));
+    NRF24L01P_CHECK_ERROR(nrf24l01p_set_tx_auto_retransmit_count(device));
+    NRF24L01P_CHECK_ERROR(nrf24l01p_set_tx_auto_retransmit_delay(device));
+    NRF24L01P_CHECK_ERROR(nrf24l01p_set_tx_addr(device));
+    NRF24L01P_CHECK_ERROR(nrf24l01p_set_ptx_mode(device));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_rx_receive(uint8_t* rx_payload)
+nrf24l01p_error_t nrf24l01p_init_prx(nrf24l01p_device_t* device)
 {
-	NRF24L01P_CHECK_ERROR(nrf24l01p_read_rx_fifo(rx_payload));
-	NRF24L01P_CHECK_ERROR(nrf24l01p_clear_flag(NRF24L01P_REG_STATUS_RX_DR));
+	NRF24L01P_CHECK_NULL(device);
+
+	NRF24L01P_CHECK_ERROR(nrf24l01p_reset(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_init_general_config(device));
+
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_rx_pipes(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_rx_auto_ack_pipes(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_rx_addresses(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_rx_payload_length(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_prx_mode(device));
+
+    return NRF24L01P_SUCCESS;
+}
+
+nrf24l01p_error_t nrf24l01p_rx_receive(nrf24l01p_device_t* device, uint8_t* rx_payload)
+{
+	NRF24L01P_CHECK_NULL(device);
+	NRF24L01P_CHECK_NULL(rx_payload);
+
+	NRF24L01P_CHECK_ERROR(nrf24l01p_read_rx_fifo(device, rx_payload));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_clear_flag(device, NRF24L01P_REG_STATUS_RX_DR));
 
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_tx_transmit(uint8_t* tx_payload)
+nrf24l01p_error_t nrf24l01p_tx_transmit(nrf24l01p_device_t* device, uint8_t* tx_payload, uint8_t num_bytes)
 {
-    NRF24L01P_CHECK_ERROR(nrf24l01p_write_tx_fifo(tx_payload));
+	NRF24L01P_CHECK_NULL(device);
+	NRF24L01P_CHECK_NULL(tx_payload);
+
+    NRF24L01P_CHECK_ERROR(nrf24l01p_write_tx_fifo(device, tx_payload, num_bytes));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_irq(nrf24l01p_irq_t* irq_sources)
+nrf24l01p_error_t nrf24l01p_irq(nrf24l01p_device_t* device, nrf24l01p_irq_t* irq_sources)
 {
+	NRF24L01P_CHECK_NULL(device);
+	NRF24L01P_CHECK_NULL(irq_sources);
+
 	uint8_t dummy;
-	config.interface.spi_rx(&dummy); 	// Ensure SPI RX buffer is empty
+	device->interface.spi_rx(&dummy); 	// Ensure SPI RX buffer is empty
 
     uint8_t status;
-    NRF24L01P_CHECK_ERROR(nrf24l01p_get_status_and_clear_IRQ_flags(&status));
+    NRF24L01P_CHECK_ERROR(nrf24l01p_get_status_and_clear_IRQ_flags(device, &status));
 
     irq_sources->rx_dr = READ_BIT(status, NRF24L01P_REG_STATUS_RX_DR);
     irq_sources->tx_ds = READ_BIT(status, NRF24L01P_REG_STATUS_TX_DS);
@@ -215,317 +238,396 @@ nrf24l01p_error_t nrf24l01p_irq(nrf24l01p_irq_t* irq_sources)
     return NRF24L01P_SUCCESS;
 }
 
-/* nRF24L01+ Sub Functions */
-nrf24l01p_error_t nrf24l01p_reset()
+nrf24l01p_error_t nrf24l01p_reset(nrf24l01p_device_t* device)
 {
+	NRF24L01P_CHECK_NULL(device);
+
     // Reset pins
-	config.interface.set_cs(1);
-    config.interface.set_ce(0);
+	device->interface.set_cs(1);
+    device->interface.set_ce(0);
 
     // Reset registers
     for (size_t i = 0; i < sizeof(reg_rst_vals_8bit) / sizeof(reg_rst_vals_8bit[0]); i++)
-    	NRF24L01P_CHECK_ERROR(write_register(reg_rst_vals_8bit[i].address, reg_rst_vals_8bit[i].value));
+    	NRF24L01P_CHECK_ERROR(write_register(device, reg_rst_vals_8bit[i].address, reg_rst_vals_8bit[i].value));
 
     for (size_t i = 0; i < sizeof(reg_rst_vals_40bit) / sizeof(reg_rst_vals_40bit[0]); i++)
-    	NRF24L01P_CHECK_ERROR(write_register_multibyte(reg_rst_vals_40bit[i].address, reg_rst_vals_40bit[i].value, 40/8));
+    	NRF24L01P_CHECK_ERROR(write_register_multibyte(device, reg_rst_vals_40bit[i].address, reg_rst_vals_40bit[i].value, 40/8));
 
     // Reset FIFOs
-    NRF24L01P_CHECK_ERROR(nrf24l01p_flush_rx_fifo());
-    NRF24L01P_CHECK_ERROR(nrf24l01p_flush_tx_fifo());
+    NRF24L01P_CHECK_ERROR(nrf24l01p_flush_rx_fifo(device));
+    NRF24L01P_CHECK_ERROR(nrf24l01p_flush_tx_fifo(device));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_prx_mode()
+nrf24l01p_error_t nrf24l01p_set_prx_mode(nrf24l01p_device_t* device)
 {
+	NRF24L01P_CHECK_NULL(device);
+
     uint8_t config_reg;
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_CONFIG, &config_reg));
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_CONFIG, &config_reg));
     SET_BIT(config_reg, NRF24L01P_REG_CONFIG_PRIM_RX);
 
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_CONFIG, config_reg));
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_CONFIG, config_reg));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_ptx_mode()
+nrf24l01p_error_t nrf24l01p_set_ptx_mode(nrf24l01p_device_t* device)
 {
+	NRF24L01P_CHECK_NULL(device);
+
     uint8_t config_reg;
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_CONFIG, &config_reg));
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_CONFIG, &config_reg));
     CLEAR_BIT(config_reg, NRF24L01P_REG_CONFIG_PRIM_RX);
 
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_CONFIG, config_reg));
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_CONFIG, config_reg));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_rx_addr(uint8_t index, uint64_t address)	// index must be integer from 0 to 5
+nrf24l01p_error_t nrf24l01p_set_rx_addresses(nrf24l01p_device_t* device)
 {
-	if (index > 5)
-		return NRF24L01P_INVALID_VALUE;
+	NRF24L01P_CHECK_NULL(device);
 
-	if (index == 0 || index == 1)
-		NRF24L01P_CHECK_ERROR(write_register_multibyte(NRF24L01P_REG_RX_ADDR_P0 + index, address, config.address_width));
-	else
-		NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_RX_ADDR_P0 + index, (uint8_t)address));
+	uint64_t address;
+
+	for (int i = 0; i < 6; i++)
+	{
+		switch(i)
+		{
+		case 0:
+			address = device->rx_config.address_p0; break;
+		case 1:
+			address = device->rx_config.address_p1; break;
+		case 2:
+			address = (uint64_t) device->rx_config.address_p2; break;
+		case 3:
+			address = (uint64_t) device->rx_config.address_p3; break;
+		case 4:
+			address = (uint64_t) device->rx_config.address_p4; break;
+		case 5:
+			address = (uint64_t) device->rx_config.address_p5; break;
+		}
+
+		NRF24L01P_CHECK_ERROR(write_register_multibyte(device, NRF24L01P_REG_RX_ADDR_P0 + i, address, device->config.address_width));
+	}
 
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_tx_addr(uint64_t address)
+nrf24l01p_error_t nrf24l01p_set_tx_addr(nrf24l01p_device_t* device)
 {
-	NRF24L01P_CHECK_ERROR(write_register_multibyte(NRF24L01P_REG_TX_ADDR, address, config.address_width));
+	NRF24L01P_CHECK_NULL(device);
+
+	NRF24L01P_CHECK_ERROR(write_register_multibyte(device, NRF24L01P_REG_TX_ADDR, device->tx_config.address, device->config.address_width));
 
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_read_rx_addr(uint8_t index, uint64_t* address)	// index must be integer from 0 to 5
+nrf24l01p_error_t nrf24l01p_read_rx_addr(nrf24l01p_device_t* device, uint8_t index, uint64_t* address)	// index must be integer from 0 to 5
 {
+	NRF24L01P_CHECK_NULL(device);
+	NRF24L01P_CHECK_NULL(address);
+
 	if (index > 5)
 		return NRF24L01P_INVALID_VALUE;
 
 	if (index == 0 || index == 1)
-		NRF24L01P_CHECK_ERROR(read_register_multibyte(NRF24L01P_REG_RX_ADDR_P0 + index, address, config.address_width));
+		NRF24L01P_CHECK_ERROR(read_register_multibyte(device, NRF24L01P_REG_RX_ADDR_P0 + index, address, device->config.address_width));
 	else
 	{
 		uint8_t address_byte;
-		NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_RX_ADDR_P0 + index, &address_byte));
+		NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_RX_ADDR_P0 + index, &address_byte));
 		*address = (uint64_t) address_byte;
 	}
 
+	return NRF24L01P_SUCCESS;
+}
+
+nrf24l01p_error_t nrf24l01p_read_tx_addr(nrf24l01p_device_t* device, uint64_t* address)
+{
+	NRF24L01P_CHECK_NULL(device);
+	NRF24L01P_CHECK_NULL(address);
+
+	NRF24L01P_CHECK_ERROR(read_register_multibyte(device, NRF24L01P_REG_TX_ADDR, address, device->config.address_width));
 
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_read_tx_addr(uint64_t* address)
+nrf24l01p_error_t nrf24l01p_power_up(nrf24l01p_device_t* device)
 {
-	NRF24L01P_CHECK_ERROR(read_register_multibyte(NRF24L01P_REG_TX_ADDR, address, config.address_width));
+	NRF24L01P_CHECK_NULL(device);
 
-	return NRF24L01P_SUCCESS;
-}
-
-nrf24l01p_error_t nrf24l01p_power_up()
-{
     uint8_t config_reg;
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_CONFIG, &config_reg));
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_CONFIG, &config_reg));
     SET_BIT(config_reg, NRF24L01P_REG_CONFIG_PWR_UP);
 
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_CONFIG, config_reg));
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_CONFIG, config_reg));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_power_down()
+nrf24l01p_error_t nrf24l01p_power_down(nrf24l01p_device_t* device)
 {
+	NRF24L01P_CHECK_NULL(device);
+
     uint8_t config_reg;
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_CONFIG, &config_reg));
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_CONFIG, &config_reg));
     CLEAR_BIT(config_reg, NRF24L01P_REG_CONFIG_PWR_UP);
 
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_CONFIG, config_reg));
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_CONFIG, config_reg));
 
     return NRF24L01P_SUCCESS;
 }
 
 
 /* ------------------------------ Low-level API ------------------------------ */
-nrf24l01p_error_t nrf24l01p_get_status(uint8_t* status)
+nrf24l01p_error_t nrf24l01p_get_status(nrf24l01p_device_t* device, uint8_t* status)
 {
-	config.interface.set_cs(0);
+	device->interface.set_cs(0);
 
-	NRF24L01P_CHECK_ERROR(config.interface.spi_tx_rx(NRF24L01P_CMD_W_REGISTER | NRF24L01P_REG_STATUS, status));
+	NRF24L01P_CHECK_ERROR(device->interface.spi_tx_rx(NRF24L01P_CMD_W_REGISTER | NRF24L01P_REG_STATUS, status));
 
-	config.interface.set_cs(1);
+	device->interface.set_cs(1);
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_get_status_and_clear_IRQ_flags(uint8_t* status)
+nrf24l01p_error_t nrf24l01p_get_status_and_clear_IRQ_flags(nrf24l01p_device_t* device, uint8_t* status)
 {
-	config.interface.set_cs(0);
+	device->interface.set_cs(0);
 
-	NRF24L01P_CHECK_ERROR(config.interface.spi_tx_rx(NRF24L01P_CMD_W_REGISTER | NRF24L01P_REG_STATUS, status));
+	NRF24L01P_CHECK_ERROR(device->interface.spi_tx_rx(NRF24L01P_CMD_W_REGISTER | NRF24L01P_REG_STATUS, status));
 	// Following line takes advantage of the fact that active flag is 1, and writing 1 to it clears it
-	NRF24L01P_CHECK_ERROR(config.interface.spi_tx(*status));
+	NRF24L01P_CHECK_ERROR(device->interface.spi_tx(*status));
 
-	config.interface.set_cs(1);
+	device->interface.set_cs(1);
 
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_get_fifo_status(uint8_t* fifo_status)
+nrf24l01p_error_t nrf24l01p_get_fifo_status(nrf24l01p_device_t* device, uint8_t* fifo_status)
 {
-	NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_FIFO_STATUS, fifo_status));
+	NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_FIFO_STATUS, fifo_status));
 
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_flush_rx_fifo()
+nrf24l01p_error_t nrf24l01p_flush_rx_fifo(nrf24l01p_device_t* device)
 {
-	NRF24L01P_CHECK_ERROR(send_command(NRF24L01P_CMD_FLUSH_RX));
+	uint8_t status;
+	NRF24L01P_CHECK_ERROR(send_command(device, NRF24L01P_CMD_FLUSH_RX, &status));
 
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_flush_tx_fifo()
+nrf24l01p_error_t nrf24l01p_flush_tx_fifo(nrf24l01p_device_t* device)
 {
-	NRF24L01P_CHECK_ERROR(send_command(NRF24L01P_CMD_FLUSH_TX));
+	uint8_t status;
+	NRF24L01P_CHECK_ERROR(send_command(device, NRF24L01P_CMD_FLUSH_TX, &status));
 
 	return NRF24L01P_SUCCESS;
 }
 
-
-nrf24l01p_error_t nrf24l01p_read_rx_fifo(uint8_t* rx_payload)
+nrf24l01p_error_t nrf24l01p_read_rx_fifo(nrf24l01p_device_t* device, uint8_t* rx_payload)
 {
-    NRF24L01P_CHECK_ERROR(send_command(NRF24L01P_CMD_R_RX_PAYLOAD));
+	uint8_t status;
+    NRF24L01P_CHECK_ERROR(send_command(device, NRF24L01P_CMD_R_RX_PAYLOAD, &status));
 
-    config.interface.set_cs(0);
+    uint8_t pipe = READ_FIELD(status, NRF24L01P_REG_STATUS_RX_P_NO_MASK);
+    if (pipe == 0b110)
+    	return NRF24L01P_INVALID_VALUE;
+    if (pipe == 0b111)
+    	return NRF24L01P_INVALID_OPERATION;
 
-	for (uint8_t i = 0; i < config.data_length; i++)
-		NRF24L01P_CHECK_ERROR(config.interface.spi_tx_rx(0xFF, &rx_payload[i]));
+    device->interface.set_cs(0);
 
-	config.interface.set_cs(1);
+	for (uint8_t i = 0; i < device->rx_config.data_length[pipe]; i++)
+		NRF24L01P_CHECK_ERROR(device->interface.spi_tx_rx(0xFF, &rx_payload[i]));
+
+	device->interface.set_cs(1);
 
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_write_tx_fifo(uint8_t* tx_payload)
+nrf24l01p_error_t nrf24l01p_write_tx_fifo(nrf24l01p_device_t* device, uint8_t* tx_payload, uint8_t num_bytes)
 {
     uint8_t status;
 
-    config.interface.set_cs(0);
+    device->interface.set_cs(0);
 
-    NRF24L01P_CHECK_ERROR(config.interface.spi_tx_rx(NRF24L01P_CMD_W_TX_PAYLOAD, &status));
+    NRF24L01P_CHECK_ERROR(device->interface.spi_tx_rx(NRF24L01P_CMD_W_TX_PAYLOAD, &status));
 
-    for (uint8_t i = 0; i < config.data_length; i++)
-    	NRF24L01P_CHECK_ERROR(config.interface.spi_tx(tx_payload[i]));
+    for (uint8_t i = 0; i < num_bytes; i++)
+    	NRF24L01P_CHECK_ERROR(device->interface.spi_tx(tx_payload[i]));
 
-    config.interface.set_cs(1);
+    device->interface.set_cs(1);
 
 	return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_rx_set_payload_length(uint8_t pipe_index, uint8_t bytes)
+nrf24l01p_error_t nrf24l01p_set_rx_payload_length(nrf24l01p_device_t* device)
 {
-	if (bytes > 32 || pipe_index > 5)
-		return NRF24L01P_INVALID_VALUE;
-
-	NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_RX_PW_P0 + pipe_index, bytes));
+	for (int i = 0; i < 6; i++)
+	{
+		if (device->rx_config.data_length[i] > 32 || device->rx_config.data_length[i] == 0)
+			return NRF24L01P_INVALID_VALUE;
+		NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_RX_PW_P0 + i, device->rx_config.data_length[i]));
+	}
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_clear_status_flag(uint8_t flags)
+nrf24l01p_error_t nrf24l01p_clear_status_flag(nrf24l01p_device_t* device, uint8_t flags)
 {
     uint8_t status;
 
-    NRF24L01P_CHECK_ERROR(nrf24l01p_get_status(&status));
+    NRF24L01P_CHECK_ERROR(nrf24l01p_get_status(device, &status));
     SET_BIT(status, flags);
 
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_STATUS, status));
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_STATUS, status));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_crc_length(nrf24l01p_crc_length_t length)
+nrf24l01p_error_t nrf24l01p_set_crc_length(nrf24l01p_device_t* device)
 {
 
     uint8_t config_reg;
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_CONFIG, &config_reg));
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_CONFIG, &config_reg));
 
     CLEAR_BIT(config_reg, NRF24L01P_REG_CONFIG_CRCO);
-    config_reg |= length;		// enum values already reflect physical encoding
+    config_reg |= device->config.crc_length;	// enum values already reflect physical encoding
 
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_CONFIG, config_reg));
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_CONFIG, config_reg));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_address_width(uint8_t bytes)
+nrf24l01p_error_t nrf24l01p_set_address_width(nrf24l01p_device_t* device)
 {
-	if (bytes < 3 || bytes > 5)
+	if (device->config.address_width < 3 || device->config.address_width > 5)
 		return NRF24L01P_INVALID_VALUE;
 
-	NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_SETUP_AW, bytes - 2));
+	NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_SETUP_AW, device->config.address_width - 2));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_auto_retransmit_count(uint8_t count)
+nrf24l01p_error_t nrf24l01p_set_tx_auto_retransmit_count(nrf24l01p_device_t* device)
 {
-	if (count > 15)
+	if (device->tx_config.auto_retransmit_count > 15)
 		return NRF24L01P_INVALID_VALUE;
 
     uint8_t setup_retr;
 
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_SETUP_RETR, &setup_retr));
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_SETUP_RETR, &setup_retr));
 
     CLEAR_FIELD(setup_retr, NRF24L01P_REG_SETUP_RETR_ARC_MASK);
-    SET_FIELD(setup_retr, count, NRF24L01P_REG_SETUP_RETR_ARC_MASK, NRF24L01P_REG_SETUP_RETR_ARC_POS);
+    SET_FIELD(setup_retr, device->tx_config.auto_retransmit_count, NRF24L01P_REG_SETUP_RETR_ARC_MASK, NRF24L01P_REG_SETUP_RETR_ARC_POS);
 
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_SETUP_RETR, setup_retr));
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_SETUP_RETR, setup_retr));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_auto_retransmit_delay(uint8_t delay_250us)
+nrf24l01p_error_t nrf24l01p_set_tx_auto_retransmit_delay(nrf24l01p_device_t* device)
 {
-	if (delay_250us < 1 || delay_250us > 16)
+	if (device->tx_config.auto_retransmit_delay_250us < 1 || device->tx_config.auto_retransmit_delay_250us > 16)
 		return NRF24L01P_INVALID_VALUE;
 
     uint8_t setup_retr;
+    uint8_t code = (device->tx_config.auto_retransmit_delay_250us - 1);
 
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_SETUP_RETR, &setup_retr));
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_SETUP_RETR, &setup_retr));
 
     CLEAR_FIELD(setup_retr, NRF24L01P_REG_SETUP_RETR_ARD_MASK);
-    SET_FIELD(setup_retr, (delay_250us - 1), NRF24L01P_REG_SETUP_RETR_ARD_MASK, NRF24L01P_REG_SETUP_RETR_ARD_POS);
+    SET_FIELD(setup_retr, code, NRF24L01P_REG_SETUP_RETR_ARD_MASK, NRF24L01P_REG_SETUP_RETR_ARD_POS);
 
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_SETUP_RETR, setup_retr));
-
-    return NRF24L01P_SUCCESS;
-}
-
-nrf24l01p_error_t nrf24l01p_set_auto_ack_pipes(uint8_t pipes)
-{
-    uint8_t en_aa = (pipes & 0b00111111);	// force bits 7 and 6 to zero
-
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_EN_AA, en_aa));
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_SETUP_RETR, setup_retr));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_rf_channel(uint16_t channel_MHz)
+nrf24l01p_error_t nrf24l01p_set_rx_pipes(nrf24l01p_device_t* device)
 {
-	if (channel_MHz < 2400 || channel_MHz > 2525)
+    uint8_t enable_pipes = (device->rx_config.enable_pipes & 0b00111111);	// force bits 7 and 6 to zero
+
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_EN_RXADDR, enable_pipes));
+
+    return NRF24L01P_SUCCESS;
+}
+
+nrf24l01p_error_t nrf24l01p_set_rx_auto_ack_pipes(nrf24l01p_device_t* device)
+{
+    uint8_t en_aa = (device->rx_config.auto_ack_pipes & 0b00111111);	// force bits 7 and 6 to zero
+
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_EN_AA, en_aa));
+
+    return NRF24L01P_SUCCESS;
+}
+
+nrf24l01p_error_t nrf24l01p_set_rf_channel(nrf24l01p_device_t* device)
+{
+	if (device->config.channel_MHz < 2400 || device->config.channel_MHz > 2525)
 		return NRF24L01P_INVALID_VALUE;
 
-	uint8_t rf_ch = channel_MHz - 2400;
+	uint8_t rf_ch = device->config.channel_MHz - 2400;
 
-	NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_RF_CH, rf_ch));
+	NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_RF_CH, rf_ch));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_rf_tx_output_power(nrf24l01p_output_power_t output_power)
+nrf24l01p_error_t nrf24l01p_set_tx_output_power(nrf24l01p_device_t* device)
 {
     uint8_t rf_setup;
 
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_RF_SETUP, &rf_setup));
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_RF_SETUP, &rf_setup));
     CLEAR_FIELD(rf_setup, NRF24L01P_REG_RF_SETUP_RF_PWR_MASK);
-    rf_setup |= output_power; 	// enum values already reflect physical encoding
+    rf_setup |= device->tx_config.output_power; 	// enum values already reflect physical encoding
 
-    NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_RF_SETUP, rf_setup));
+    NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_RF_SETUP, rf_setup));
 
     return NRF24L01P_SUCCESS;
 }
 
-nrf24l01p_error_t nrf24l01p_set_rf_data_rate(nrf24l01p_data_rate_t data_rate)
+nrf24l01p_error_t nrf24l01p_set_rf_data_rate(nrf24l01p_device_t* device)
 {
     uint8_t rf_setup;
 
-    NRF24L01P_CHECK_ERROR(read_register(NRF24L01P_REG_RF_SETUP, &rf_setup));
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_RF_SETUP, &rf_setup));
     rf_setup &= ~(NRF24L01P_REG_RF_SETUP_RF_DR_HIGH | NRF24L01P_REG_RF_SETUP_RF_DR_LOW);
-	rf_setup |= data_rate;		// enum values already reflect physical encoding
+	rf_setup |= device->config.data_rate;		// enum values already reflect physical encoding
 
-	NRF24L01P_CHECK_ERROR(write_register(NRF24L01P_REG_RF_SETUP, rf_setup));
+	NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_RF_SETUP, rf_setup));
 
     return NRF24L01P_SUCCESS;
+}
+
+nrf24l01p_error_t nrf24l01p_set_irq_masks(nrf24l01p_device_t* device)
+{
+    uint8_t config_reg;
+
+    NRF24L01P_CHECK_ERROR(read_register(device, NRF24L01P_REG_RF_SETUP, &config_reg));
+    config_reg &= ~(NRF24L01P_REG_CONFIG_MASK_MAX_RT | NRF24L01P_REG_CONFIG_MASK_TX_DS | NRF24L01P_REG_CONFIG_MASK_RX_DR);
+    config_reg |= 	(device->config.enable_irq_max_rt 	? NRF24L01P_REG_CONFIG_MASK_MAX_RT 	: 0) |
+    				(device->config.enable_irq_tx_ds 	? NRF24L01P_REG_CONFIG_MASK_TX_DS 	: 0) |
+					(device->config.enable_irq_rx_dr 	? NRF24L01P_REG_CONFIG_MASK_RX_DR 	: 0);
+
+	NRF24L01P_CHECK_ERROR(write_register(device, NRF24L01P_REG_RF_SETUP, config_reg));
+
+    return NRF24L01P_SUCCESS;
+}
+
+nrf24l01p_error_t nrf24l01p_init_general_config(nrf24l01p_device_t* device)
+{
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_rf_channel(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_address_width(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_rf_data_rate(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_crc_length(device));
+	NRF24L01P_CHECK_ERROR(nrf24l01p_set_irq_masks(device));
+
+	return NRF24L01P_SUCCESS;
 }
