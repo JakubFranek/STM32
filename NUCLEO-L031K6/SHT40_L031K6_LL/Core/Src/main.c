@@ -46,12 +46,14 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+sht4x_error_t sht4x_status;
 sht4x_raw_data_t sht4x_raw_data;
 sht4x_data_t sht4x_data;
 sht4x_device_t sht4x = {
 		.i2c_address = SHT4X_I2C_ADDR_A,
 		.i2c_write = &I2C1_Transmit,
 		.i2c_read = &I2C1_Receive,
+		.calculate_crc = &calculate_CRC8
 };
 /* USER CODE END PV */
 
@@ -109,11 +111,7 @@ int main(void)
   {
 	  sht4x_send_command(&sht4x, SHT4X_I2C_CMD_MEAS_HIGH_PREC);
 	  LL_mDelay(9);
-	  sht4x_read_measurement(&sht4x, &sht4x_raw_data);
-	  sht4x_convert_data(&sht4x, &sht4x_raw_data, &sht4x_data);
-
-	  uint8_t temp_array[2] = {(uint8_t)((sht4x_raw_data.temperature_raw & 0xFF00) >> 8), (uint8_t)(sht4x_raw_data.temperature_raw & 0x00FF)};
-	  uint8_t temp_crc = calculate_CRC(temp_array, 2);
+	  sht4x_status = sht4x_read_measurement(&sht4x, &sht4x_data);
 
 	  LL_mDelay(100);
     /* USER CODE END WHILE */

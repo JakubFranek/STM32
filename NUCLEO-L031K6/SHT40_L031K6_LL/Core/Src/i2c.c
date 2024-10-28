@@ -71,7 +71,7 @@ void MX_I2C1_Init(void)
   LL_I2C_DisableGeneralCall(I2C1);
   LL_I2C_EnableClockStretching(I2C1);
   I2C_InitStruct.PeripheralMode = LL_I2C_MODE_I2C;
-  I2C_InitStruct.Timing = 0x00B07CB4;
+  I2C_InitStruct.Timing = 0x0060112F;
   I2C_InitStruct.AnalogFilter = LL_I2C_ANALOGFILTER_ENABLE;
   I2C_InitStruct.DigitalFilter = 0;
   I2C_InitStruct.OwnAddress1 = 0;
@@ -110,7 +110,7 @@ uint8_t I2C1_Transmit(uint8_t address, uint8_t payload)
 	return 0;
 }
 
-uint8_t I2C1_Receive(uint8_t address, uint8_t bytes, uint8_t* payload)
+uint8_t I2C1_Receive(uint8_t address, uint8_t* payload, uint8_t bytes)
 {
 	LL_I2C_HandleTransfer(I2C1, address, LL_I2C_ADDRSLAVE_7BIT,
 							  bytes, LL_I2C_MODE_AUTOEND, LL_I2C_GENERATE_START_READ);

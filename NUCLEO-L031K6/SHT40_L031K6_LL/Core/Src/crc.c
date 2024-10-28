@@ -50,9 +50,10 @@ void MX_CRC_Init(void)
 }
 
 /* USER CODE BEGIN 1 */
-uint8_t calculate_CRC(uint8_t* data, uint8_t length)
+uint8_t calculate_CRC8(uint8_t* data, uint8_t length, uint8_t polynomial)
 {
 	// Reset the CRC calculation unit
+	LL_CRC_SetPolynomialCoef(CRC, polynomial);
 	LL_CRC_ResetCRCCalculationUnit(CRC);
 
 	// Feed data to CRC calculation

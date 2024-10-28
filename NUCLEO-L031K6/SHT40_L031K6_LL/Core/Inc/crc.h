@@ -39,7 +39,7 @@ extern "C" {
 void MX_CRC_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-
+uint8_t calculate_CRC8(uint8_t* data, uint8_t length, uint8_t polynomial);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
