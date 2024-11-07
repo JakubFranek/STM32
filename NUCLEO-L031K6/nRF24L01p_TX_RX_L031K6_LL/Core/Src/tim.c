@@ -84,14 +84,14 @@ void MX_TIM21_Init(void)
   LL_TIM_SetTriggerOutput(TIM21, LL_TIM_TRGO_RESET);
   LL_TIM_DisableMasterSlaveMode(TIM21);
   /* USER CODE BEGIN TIM21_Init 2 */
-  disable_scheduled_interrupt();
+  TIMx_disable_scheduled_interrupt();
   /* USER CODE END TIM21_Init 2 */
 
 }
 
 /* USER CODE BEGIN 1 */
 
-void TIM2_delay_us(uint16_t us)
+void TIMx_delay_us(uint16_t us)
 {
 	uint16_t ticks = us;
 
@@ -102,24 +102,24 @@ void TIM2_delay_us(uint16_t us)
 	LL_TIM_DisableCounter(TIM2);
 }
 
-void TIM2_restart()
+void TIMx_restart()
 {
 	LL_TIM_DisableCounter(TIM2);
 	LL_TIM_SetCounter(TIM2, 0);
 	LL_TIM_EnableCounter(TIM2);
 }
 
-void TIM2_stop()
+void TIMx_stop()
 {
 	LL_TIM_DisableCounter(TIM2);
 }
 
-uint16_t TIM2_get_count()
+uint16_t TIMx_get_count()
 {
 	return LL_TIM_GetCounter(TIM2);
 }
 
-void schedule_interrupt(uint16_t us)
+void TIMx_schedule_interrupt(uint16_t us)
 {
 	LL_TIM_SetCounter(TIM21, 0);
 	LL_TIM_SetAutoReload(TIM21, us);
@@ -127,7 +127,7 @@ void schedule_interrupt(uint16_t us)
 	LL_TIM_EnableCounter(TIM21);
 }
 
-void disable_scheduled_interrupt(void)
+void TIMx_disable_scheduled_interrupt(void)
 {
 	LL_TIM_DisableCounter(TIM21);
 	LL_TIM_DisableIT_UPDATE(TIM21);

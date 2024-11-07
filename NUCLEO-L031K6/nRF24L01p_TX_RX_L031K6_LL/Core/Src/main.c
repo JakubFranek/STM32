@@ -36,7 +36,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define TRANSMITTER
-
 //#define RECEIVER
 /* USER CODE END PD */
 
@@ -53,7 +52,7 @@
 void nrf24l01p_set_cs(uint8_t state);
 void nrf24l01p_set_ce(uint8_t state);
 
-nrf24l01p_device_t device = {
+Nrf24l01pDevice nrf24_device = {
 		.interface = {
 			.set_cs = &nrf24l01p_set_cs,
 			.set_ce = &nrf24l01p_set_ce,
@@ -90,7 +89,7 @@ nrf24l01p_device_t device = {
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void nrf24l01p_IRQ_callback(void);
+void GPIO_EXTI1_IRQ_callback(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -133,17 +132,17 @@ int main(void)
   MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
   LL_SPI_Enable(SPI1);
-  nrf24l01p_init_ptx(&device);
+  nrf24l01p_init_ptx(&nrf24_device);
 
 #ifdef RECEIVER
-  nrf24l01p_set_prx_mode(&device);
+  nrf24l01p_set_prx_mode(&nrf24_device);
   uint8_t rx_data[NRF24_DATA_LENGTH] = {0};
-  nrf24l01p_set_tx_addr(&device, 0);
-  nrf24l01p_set_rx_addr(&device, 0, 0);
+  nrf24l01p_set_tx_addr(&nrf24_device, 0);
+  nrf24l01p_set_rx_addr(&nrf24_device, 0, 0);
 #endif
 
 #ifdef TRANSMITTER
-  nrf24l01p_set_ptx_mode(&device);
+  nrf24l01p_set_ptx_mode(&nrf24_device);
   uint8_t tx_data[NRF24_DATA_LENGTH] = {0, 1, 2, 3, 4, 5, 6, 7};
   //nrf24l01p_set_tx_addr(0xE7E7E7E7E7);
   //nrf24l01p_set_rx_addr(0, 0xE7E7E7E7E7);
@@ -160,9 +159,9 @@ int main(void)
 
 #ifdef TRANSMITTER
 
-	  nrf24l01p_power_up(&device);
-	  schedule_interrupt(1500);	// activating CE after min. 1.5 ms per nRF24L01+ datasheet specification
-	  nrf24l01p_write_tx_fifo(&device, tx_data, NRF24_DATA_LENGTH);	// TX data can be written any time, nRF24L01+ will send it when ready
+	  nrf24l01p_power_up(&nrf24_device);
+	  TIMx_schedule_interrupt(1500);	// activating CE after min. 1.5 ms per nRF24L01+ datasheet specification
+	  nrf24l01p_write_tx_fifo(&nrf24_device, tx_data, NRF24_DATA_LENGTH);	// TX data can be written any time, nRF24L01+ will send it when ready
 
 	  for(int i= 0; i < 8; i++)
 		  tx_data[i]++;
@@ -225,18 +224,18 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void nrf24l01p_IRQ_callback(void)
+void GPIO_EXTI1_IRQ_callback(void)
 {
 	// Logic 0 check... should not be necessary because interrupt is set for falling edge though
 	if(!LL_GPIO_IsInputPinSet(nRF24_IRQ_GPIO_Port, nRF24_IRQ_Pin))
 	{
-		nrf24l01p_irq_t irq_sources;
-		if(nrf24l01p_irq(&device, &irq_sources) != NRF24L01P_SUCCESS)
+		Nrf24l01pIrq irq_sources;
+		if(nrf24l01p_get_and_clear_irq_flags(&nrf24_device, &irq_sources) != NRF24L01P_SUCCESS)
 			return;
 
 #ifdef RECEIVER
 		if (irq_sources.rx_dr)
-			nrf24l01p_rx_receive(&device, rx_data);
+			nrf24l01p_rx_receive(&nrf24_device, rx_data);
 #endif
 
 #ifdef TRANSMITTER
@@ -246,7 +245,7 @@ void nrf24l01p_IRQ_callback(void)
 			LL_GPIO_ResetOutputPin(LD3_GPIO_Port, LD3_Pin);
 #endif
 
-		nrf24l01p_power_down(&device);
+		nrf24l01p_power_down(&nrf24_device);
 		nrf24l01p_set_ce(0);
 	}
 }
@@ -255,7 +254,7 @@ void TIM21_IRQ_callback(void)
 {
 	// do scheduled action here!
 	nrf24l01p_set_ce(1);
-	disable_scheduled_interrupt();
+	TIMx_disable_scheduled_interrupt();
 }
 
 /*---------- Functions to be passed to nRF24 driver via pointer ---------*/

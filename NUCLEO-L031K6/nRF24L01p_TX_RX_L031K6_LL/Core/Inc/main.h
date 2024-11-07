@@ -69,7 +69,7 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-void nrf24l01p_IRQ_callback(void);
+void GPIO_EXTI1_IRQ_callback(void);
 void TIM21_IRQ_callback(void);
 /* USER CODE END EFP */
 

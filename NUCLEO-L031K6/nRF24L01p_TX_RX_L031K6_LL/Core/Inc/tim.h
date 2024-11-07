@@ -40,12 +40,12 @@ void MX_TIM2_Init(void);
 void MX_TIM21_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-void TIM2_delay_us(uint16_t us);
-void TIM2_restart();
-void TIM2_stop();
-uint16_t TIM2_get_count();
-void schedule_interrupt(uint16_t us);
-void disable_scheduled_interrupt(void);
+void TIMx_delay_us(uint16_t us);
+void TIMx_restart();
+void TIMx_stop();
+uint16_t TIMx_get_count();
+void TIMx_schedule_interrupt(uint16_t us);
+void TIMx_disable_scheduled_interrupt(void);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
