@@ -87,22 +87,22 @@ void MX_I2C1_Init(void)
 
 /* USER CODE BEGIN 1 */
 
-uint8_t I2C1_Transmit(uint8_t address, uint8_t payload)
+uint8_t I2C1_transmit_byte(uint8_t address, uint8_t payload)
 {
-	TIM2_restart();
+	TIMx_restart();
 
 	LL_I2C_HandleTransfer(I2C1, address, LL_I2C_ADDRSLAVE_7BIT,
 						  1, LL_I2C_MODE_AUTOEND, LL_I2C_GENERATE_START_WRITE);
 
 	while (!LL_I2C_IsActiveFlag_TXIS(I2C1))
-		if(TIM2_get_count() > 200)
+		if(TIMx_get_count() > 200)
 			return -1;
 
 	LL_I2C_TransmitData8(I2C1, payload);
 
-	TIM2_restart();
+	TIMx_restart();
 	while (!LL_I2C_IsActiveFlag_STOP(I2C1))
-		if(TIM2_get_count() > 200)
+		if(TIMx_get_count() > 200)
 			return -1;
 
 	LL_I2C_ClearFlag_STOP(I2C1);
@@ -110,7 +110,7 @@ uint8_t I2C1_Transmit(uint8_t address, uint8_t payload)
 	return 0;
 }
 
-uint8_t I2C1_Receive(uint8_t address, uint8_t* payload, uint8_t bytes)
+uint8_t I2C1_receive(uint8_t address, uint8_t* payload, uint8_t bytes)
 {
 	LL_I2C_HandleTransfer(I2C1, address, LL_I2C_ADDRSLAVE_7BIT,
 							  bytes, LL_I2C_MODE_AUTOEND, LL_I2C_GENERATE_START_READ);
@@ -118,16 +118,16 @@ uint8_t I2C1_Receive(uint8_t address, uint8_t* payload, uint8_t bytes)
 	uint8_t data[6];
 
 	for (int i = 0; i < 6; i++) {
-		TIM2_restart();
+		TIMx_restart();
 		while (!LL_I2C_IsActiveFlag_RXNE(I2C1))
-			if(TIM2_get_count() > 200)
+			if(TIMx_get_count() > 200)
 				return -1;
 
 		data[i] = LL_I2C_ReceiveData8(I2C1);
 	}
 
 	while (!LL_I2C_IsActiveFlag_STOP(I2C1))
-		if(TIM2_get_count() > 200)
+		if(TIMx_get_count() > 200)
 			return -1;
 
 	LL_I2C_ClearFlag_STOP(I2C1);

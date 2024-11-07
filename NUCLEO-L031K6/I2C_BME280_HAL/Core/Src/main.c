@@ -100,7 +100,7 @@ int main(void)
 		BME280_set_forced_mode();
 		HAL_Delay(10);
 		BME280_Measure_TH(&Temperature, &Humidity);
-		HAL_Delay(5000);
+		HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

@@ -27,26 +27,26 @@ typedef enum {
 	SHT4X_INVALID_OPERATION = -3,
 	SHT4X_POINTER_NULL = -4,
 	SHT4X_CRC_FAILURE = -5
-} sht4x_error_t;
+} Sht4xStatus;
 
 typedef struct {
 	uint8_t temperature_raw[2];		// 0 is MSB byte
 	uint8_t temperature_crc;
 	uint8_t humidity_raw[2];		// 0 is MSB byte
 	uint8_t humidity_crc;
-} sht4x_raw_data_t;
+} Sht4xRawData;
 
 typedef struct {
 	uint16_t serial_msb;
 	uint16_t serial_lsb;
 	uint8_t msb_crc;
 	uint8_t lsb_crc;
-} sht4x_serial_number_t;
+} Sht4xSerialNumber;
 
 typedef struct {
 	uint32_t temperature;	// convert to degrees Celsius via division by 1000
 	uint32_t humidity;		// convert to % RH via division by 1000
-} sht4x_data_t;
+} Sht4xData;
 
 // Return value of following functions is error code, 0 is only accepted success value
 typedef uint8_t (*sht4x_i2c_write_t)(uint8_t address, uint8_t payload);
@@ -58,14 +58,14 @@ typedef struct {
 	sht4x_i2c_write_t i2c_write;
 	sht4x_i2c_read_t i2c_read;
 	sht4x_calculate_crc_t calculate_crc;
-} sht4x_device_t;
+} Sht4xDevice;
 
-sht4x_error_t sht4x_send_command(sht4x_device_t* device, uint8_t command);
-sht4x_error_t sht4x_read_measurement(sht4x_device_t* device, sht4x_data_t* data);
-sht4x_error_t sht4x_read_serial_number(sht4x_device_t* device, sht4x_serial_number_t* serial_number);
+Sht4xStatus sht4x_send_command(Sht4xDevice* device, uint8_t command);
+Sht4xStatus sht4x_read_and_check_measurement(Sht4xDevice* device, Sht4xData* data);
+Sht4xStatus sht4x_read_serial_number(Sht4xDevice* device, Sht4xSerialNumber* serial_number);
 
-sht4x_error_t sht4x_read_raw_measurement(sht4x_device_t* device, sht4x_raw_data_t* raw_data);
-sht4x_error_t sht4x_convert_raw_data(sht4x_device_t* device, sht4x_raw_data_t* raw_data, sht4x_data_t* data);
+Sht4xStatus sht4x_read_raw_measurement(Sht4xDevice* device, Sht4xRawData* raw_data);
+Sht4xStatus sht4x_convert_raw_data(Sht4xDevice* device, Sht4xRawData* raw_data, Sht4xData* data);
 
 
 #endif /* INC_SHT4X_H_ */

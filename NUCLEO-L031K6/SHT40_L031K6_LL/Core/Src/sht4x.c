@@ -3,21 +3,21 @@
 #include "sht4x.h"
 #include "main.h"
 
-#define SHT4X_CHECK_ERROR(expr) do { \
+#define SHT4X_CHECK_STATUS(expr) do { \
   sht4x_error_t retval = expr; \
   if (retval != SHT4X_SUCCESS) { \
     return retval; \
   } \
 } while (0)
 
-sht4x_error_t sht4x_send_command(sht4x_device_t* device, uint8_t command)
+Sht4xStatus sht4x_send_command(Sht4xDevice* device, uint8_t command)
 {
 	if(device->i2c_write(device->i2c_address, command) != 0)
 		return SHT4X_I2C_ERROR;
 	return SHT4X_SUCCESS;
 }
 
-sht4x_error_t sht4x_read_raw_measurement(sht4x_device_t* device, sht4x_raw_data_t* raw_data)
+Sht4xStatus sht4x_read_raw_measurement(Sht4xDevice* device, Sht4xRawData* raw_data)
 {
 	uint8_t data[6];
 
@@ -34,7 +34,7 @@ sht4x_error_t sht4x_read_raw_measurement(sht4x_device_t* device, sht4x_raw_data_
 	return SHT4X_SUCCESS;
 }
 
-sht4x_error_t sht4x_convert_raw_data(sht4x_device_t* device, sht4x_raw_data_t* raw_data, sht4x_data_t* data)
+Sht4xStatus sht4x_convert_raw_data(Sht4xDevice* device, Sht4xRawData* raw_data, Sht4xData* data)
 {
 	uint32_t temperature_merged = (raw_data->temperature_raw[0] << 8) + raw_data->temperature_raw[1];
 	uint32_t humidity_merged = (raw_data->humidity_raw[0] << 8) + raw_data->humidity_raw[1];
@@ -45,11 +45,11 @@ sht4x_error_t sht4x_convert_raw_data(sht4x_device_t* device, sht4x_raw_data_t* r
 	return SHT4X_SUCCESS;
 }
 
-sht4x_error_t sht4x_read_measurement(sht4x_device_t* device, sht4x_data_t* data)
+Sht4xStatus sht4x_read_and_check_measurement(Sht4xDevice* device, Sht4xData* data)
 {
-	sht4x_raw_data_t raw_data;
+	Sht4xRawData raw_data;
 
-	SHT4X_CHECK_ERROR(sht4x_read_raw_measurement(device, &raw_data));
+	SHT4X_CHECK_STATUS(sht4x_read_raw_measurement(device, &raw_data));
 
 	uint8_t temperature_crc = device->calculate_crc(raw_data.temperature_raw, 2, SHT4X_CRC8_POLYNOMIAL);
 	uint8_t humidity_crc = device->calculate_crc(raw_data.humidity_raw, 2, SHT4X_CRC8_POLYNOMIAL);
@@ -60,7 +60,7 @@ sht4x_error_t sht4x_read_measurement(sht4x_device_t* device, sht4x_data_t* data)
 	return sht4x_convert_raw_data(device, &raw_data, data);
 }
 
-sht4x_error_t sht4x_read_serial_number(sht4x_device_t* device, sht4x_serial_number_t* serial_number)
+Sht4xStatus sht4x_read_serial_number(Sht4xDevice* device, Sht4xSerialNumber* serial_number)
 {
 	uint8_t data[6];
 
