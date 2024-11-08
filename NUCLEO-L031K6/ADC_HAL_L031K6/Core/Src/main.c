@@ -19,7 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
-#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -91,7 +90,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART2_UART_Init();
   MX_ADC_Init();
   /* USER CODE BEGIN 2 */
   if (HAL_ADCEx_EnableVREFINT() != HAL_OK)
@@ -111,13 +109,19 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
+	  HAL_GPIO_WritePin(ADC_CONV_GPIO_Port,ADC_CONV_Pin, GPIO_PIN_SET);
 	  HAL_ADC_Start(&hadc);
 	  HAL_ADC_PollForConversion(&hadc, 1000);
 	  adc_res1 = HAL_ADC_GetValue(&hadc);
+	  HAL_GPIO_WritePin(ADC_CONV_GPIO_Port,ADC_CONV_Pin, GPIO_PIN_RESET);
+
+	  HAL_GPIO_WritePin(ADC_CONV_GPIO_Port,ADC_CONV_Pin, GPIO_PIN_SET);
 	  HAL_ADC_Start(&hadc);
 	  HAL_ADC_PollForConversion(&hadc, 1000);
 	  adc_res2 = HAL_ADC_GetValue(&hadc);
+	  HAL_GPIO_WritePin(ADC_CONV_GPIO_Port,ADC_CONV_Pin, GPIO_PIN_RESET);
 	  HAL_ADC_Stop(&hadc);
+
 	  adc_res2_V = VDDA_CHARAC * (*VREFINT_CAL) / adc_res2;
 	  adc_res1_V = (adc_res2_V / 4095.0) * adc_res1;
 	  HAL_Delay(500);
@@ -133,7 +137,6 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Configure the main internal regulator output voltage
   */
@@ -164,12 +167,6 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART2;
-  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }

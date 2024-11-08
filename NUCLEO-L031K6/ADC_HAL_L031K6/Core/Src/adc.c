@@ -44,10 +44,10 @@ void MX_ADC_Init(void)
   */
   hadc.Instance = ADC1;
   hadc.Init.OversamplingMode = ENABLE;
-  hadc.Init.Oversample.Ratio = ADC_OVERSAMPLING_RATIO_256;
-  hadc.Init.Oversample.RightBitShift = ADC_RIGHTBITSHIFT_8;
+  hadc.Init.Oversample.Ratio = ADC_OVERSAMPLING_RATIO_16;
+  hadc.Init.Oversample.RightBitShift = ADC_RIGHTBITSHIFT_4;
   hadc.Init.Oversample.TriggeredMode = ADC_TRIGGEREDMODE_SINGLE_TRIGGER;
-  hadc.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
+  hadc.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc.Init.Resolution = ADC_RESOLUTION_12B;
   hadc.Init.SamplingTime = ADC_SAMPLETIME_160CYCLES_5;
   hadc.Init.ScanConvMode = ADC_SCAN_DIRECTION_FORWARD;
