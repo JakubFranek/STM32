@@ -51,7 +51,7 @@ Sht4xRawData sht4x_raw_data;
 Sht4xData sht4x_data;
 Sht4xDevice sht4x = {
 		.i2c_address = SHT4X_I2C_ADDR_A,
-		.i2c_write = &I2C1_transmit_byte,
+		.i2c_write = &I2C1_transmit,
 		.i2c_read = &I2C1_receive,
 		.calculate_crc = &calculate_CRC8
 };

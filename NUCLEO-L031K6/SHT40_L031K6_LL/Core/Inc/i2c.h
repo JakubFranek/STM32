@@ -39,7 +39,7 @@ extern "C" {
 void MX_I2C1_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-uint8_t I2C1_transmit_byte(uint8_t address, uint8_t payload);
+uint8_t I2C1_transmit(uint8_t address, uint8_t payload);
 uint8_t I2C1_receive(uint8_t address, uint8_t* payload, uint8_t bytes);
 /* USER CODE END Prototypes */
 

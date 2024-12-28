@@ -87,7 +87,7 @@ void MX_I2C1_Init(void)
 
 /* USER CODE BEGIN 1 */
 
-uint8_t I2C1_transmit_byte(uint8_t address, uint8_t payload)
+uint8_t I2C1_transmit(uint8_t address, uint8_t payload)
 {
 	TIMx_restart();
 
